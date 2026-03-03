@@ -1,0 +1,438 @@
+{
+    "gscreen_report": [
+        {
+            "ligand": {
+                "pharmacophore": {
+                    "gscreen_pistacking": [
+                        {
+                            "center": [
+                                47.7008,
+                                -20.209600000000002,
+                                100.98100000000001
+                            ],
+                            "command": "shape cylinder radius 1.120 height 1.0 caps true qrotation 0.516,-0.580,-0.000,0.630 center 47.701,-20.210,100.981 mesh true",
+                            "idxs": [
+                                1,
+                                14,
+                                4,
+                                6,
+                                15
+                            ],
+                            "plane": [
+                                -0.7309427354961767,
+                                -0.6506448268191274,
+                                -0.20587381270300986
+                            ],
+                            "radius": 1.1198308800885988
+                        }
+                    ],
+                    "gscreen_hydrophobic": [],
+                    "gscreen_hydrogenbonding": [
+                        {
+                            "center": [
+                                49.987,
+                                -22.092,
+                                98.954
+                            ],
+                            "command": "sel @/serialNumber=12 or serialNumber=6 or serialNumber=29 or serialNumber=30; di sel; color red sel",
+                            "idxs": [
+                                11,
+                                5,
+                                28,
+                                29
+                            ],
+                            "reference": [
+                                49.473,
+                                -21.939,
+                                100.216
+                            ],
+                            "is_donor": true,
+                            "category": 1,
+                            "_normal": null
+                        },
+                        {
+                            "center": [
+                                49.889,
+                                -22.751,
+                                101.283
+                            ],
+                            "command": "sel @/serialNumber=13 or serialNumber=1 or serialNumber=6; di sel; color red sel",
+                            "idxs": [
+                                12,
+                                0,
+                                5
+                            ],
+                            "reference": [
+                                49.439499999999995,
+                                -22.2745,
+                                101.359
+                            ],
+                            "is_donor": false,
+                            "category": 0,
+                            "_normal": [
+                                0.7274697154006093,
+                                0.6523095942269117,
+                                0.21279099241386618
+                            ]
+                        },
+                        {
+                            "center": [
+                                47.797,
+                                -19.954,
+                                99.824
+                            ],
+                            "command": "sel @/serialNumber=15 or serialNumber=2 or serialNumber=5; di sel; color red sel",
+                            "idxs": [
+                                14,
+                                1,
+                                4
+                            ],
+                            "reference": [
+                                47.757000000000005,
+                                -20.153,
+                                100.60849999999999
+                            ],
+                            "is_donor": false,
+                            "category": 0,
+                            "_normal": [
+                                0.7300799730814693,
+                                0.6525872695473405,
+                                0.20276362723158184
+                            ]
+                        },
+                        {
+                            "center": [
+                                42.773,
+                                -20.043,
+                                105.278
+                            ],
+                            "command": "sel @/serialNumber=17 or serialNumber=4 or serialNumber=31; di sel; color red sel",
+                            "idxs": [
+                                16,
+                                3,
+                                30
+                            ],
+                            "reference": [
+                                42.97,
+                                -18.88,
+                                104.403
+                            ],
+                            "is_donor": true,
+                            "category": 1,
+                            "_normal": null
+                        },
+                        {
+                            "center": [
+                                47.654,
+                                -17.686,
+                                104.402
+                            ],
+                            "command": "sel @/serialNumber=18 or serialNumber=10 or serialNumber=32; di sel; color red sel",
+                            "idxs": [
+                                17,
+                                9,
+                                31
+                            ],
+                            "reference": [
+                                46.479,
+                                -17.987,
+                                103.665
+                            ],
+                            "is_donor": true,
+                            "category": 1,
+                            "_normal": null
+                        },
+                        {
+                            "center": [
+                                45.087,
+                                -16.826,
+                                105.188
+                            ],
+                            "command": "sel @/serialNumber=19 or serialNumber=11; di sel; color red sel",
+                            "idxs": [
+                                18,
+                                10
+                            ],
+                            "reference": [
+                                45.303,
+                                -17.847,
+                                104.579
+                            ],
+                            "is_donor": false,
+                            "category": 0,
+                            "_normal": [
+                                -0.7178473289816775,
+                                -0.46234009273962,
+                                0.5205159468425448
+                            ]
+                        }
+                    ]
+                },
+                "file": "/data/galaxy4/user/jnooree/repo/seoklab/gscreen/examples/dude-sahh/outputs/ganal/../../inputs/crystal_ligand.mol2"
+            },
+            "receptor": {
+                "pharmacophore": {
+                    "gscreen_pistacking": [
+                        {
+                            "center": [
+                                47.2438,
+                                -16.4186,
+                                99.04299999999999
+                            ],
+                            "command": "shape cylinder radius 1.151 height 1.0 caps true qrotation 0.519,-0.140,0.000,0.843 center 47.244,-16.419,99.043 mesh true",
+                            "idxs": [
+                                3011,
+                                3013,
+                                3012,
+                                3010,
+                                3009
+                            ],
+                            "plane": [
+                                -0.23556972141074803,
+                                -0.8752695209694311,
+                                0.4223862829382662
+                            ],
+                            "radius": 1.1509167650182057
+                        }
+                    ],
+                    "gscreen_hydrogenbonding": [
+                        {
+                            "center": [
+                                43.799,
+                                -22.686,
+                                104.079
+                            ],
+                            "command": "sel @/serialNumber=497 or serialNumber=496 or serialNumber=495; di sel; color red sel",
+                            "idxs": [
+                                496,
+                                495,
+                                494
+                            ],
+                            "reference": [
+                                44.016999999999996,
+                                -23.39,
+                                103.8115
+                            ],
+                            "is_donor": false,
+                            "category": 0,
+                            "_normal": [
+                                -0.025343414454693475,
+                                0.34821319364574127,
+                                -0.9370727202905926
+                            ]
+                        },
+                        {
+                            "center": [
+                                50.934,
+                                -25.319,
+                                100.893
+                            ],
+                            "command": "sel @/serialNumber=514 or serialNumber=513 or serialNumber=516; di sel; color red sel",
+                            "idxs": [
+                                513,
+                                512,
+                                515
+                            ],
+                            "reference": [
+                                50.253,
+                                -26.117,
+                                99.929
+                            ],
+                            "is_donor": true,
+                            "category": 1,
+                            "_normal": null
+                        },
+                        {
+                            "center": [
+                                52.413,
+                                -23.757,
+                                98.376
+                            ],
+                            "command": "sel @/serialNumber=533 or serialNumber=532; di sel; color red sel",
+                            "idxs": [
+                                532,
+                                531
+                            ],
+                            "reference": [
+                                53.417,
+                                -23.056,
+                                98.182
+                            ],
+                            "is_donor": false,
+                            "category": 0,
+                            "_normal": [
+                                -0.5807990578378478,
+                                0.7350061950423169,
+                                -0.34991191414709494
+                            ]
+                        },
+                        {
+                            "center": [
+                                44.006,
+                                -20.392,
+                                107.639
+                            ],
+                            "command": "sel @/serialNumber=1201 or serialNumber=1200; di sel; color red sel",
+                            "idxs": [
+                                1200,
+                                1199
+                            ],
+                            "reference": [
+                                44.982,
+                                -21.157,
+                                107.659
+                            ],
+                            "is_donor": false,
+                            "category": 0,
+                            "_normal": [
+                                0.5656802501117484,
+                                0.7312322331477313,
+                                0.38118929134655877
+                            ]
+                        },
+                        {
+                            "center": [
+                                42.843,
+                                -16.129,
+                                106.912
+                            ],
+                            "command": "sel @/serialNumber=1421 or serialNumber=1423 or serialNumber=1420; di sel; color red sel",
+                            "idxs": [
+                                1420,
+                                1422,
+                                1419
+                            ],
+                            "reference": [
+                                43.237,
+                                -17.007,
+                                107.963
+                            ],
+                            "is_donor": true,
+                            "category": 1,
+                            "_normal": null
+                        },
+                        {
+                            "center": [
+                                46.453,
+                                -14.217,
+                                106.038
+                            ],
+                            "command": "sel @/serialNumber=1688 or serialNumber=1689 or serialNumber=1691 or serialNumber=1687 or serialNumber=1690; di sel; color red sel",
+                            "idxs": [
+                                1687,
+                                1688,
+                                1690,
+                                1686,
+                                1689
+                            ],
+                            "reference": [
+                                47.915,
+                                -14.332,
+                                106.161
+                            ],
+                            "is_donor": true,
+                            "category": 1,
+                            "_normal": null
+                        },
+                        {
+                            "center": [
+                                49.217,
+                                -15.873,
+                                103.208
+                            ],
+                            "command": "sel @/serialNumber=1733 or serialNumber=1731; di sel; color red sel",
+                            "idxs": [
+                                1732,
+                                1730
+                            ],
+                            "reference": [
+                                48.628,
+                                -14.793,
+                                102.819
+                            ],
+                            "is_donor": false,
+                            "category": 0,
+                            "_normal": [
+                                -0.27211337218243403,
+                                0.19166811737838468,
+                                0.942983374963806
+                            ]
+                        },
+                        {
+                            "center": [
+                                48.959,
+                                -23.214,
+                                95.879
+                            ],
+                            "command": "sel @/serialNumber=2994 or serialNumber=2993; di sel; color red sel",
+                            "idxs": [
+                                2993,
+                                2992
+                            ],
+                            "reference": [
+                                47.897,
+                                -23.28,
+                                95.268
+                            ],
+                            "is_donor": false,
+                            "category": 0,
+                            "_normal": [
+                                0.3544077917097201,
+                                0.6367552543705124,
+                                -0.6847903790248399
+                            ]
+                        },
+                        {
+                            "center": [
+                                47.927,
+                                -19.562,
+                                97.934
+                            ],
+                            "command": "sel @/serialNumber=3005 or serialNumber=3002 or serialNumber=3006 or serialNumber=3016; di sel; color red sel",
+                            "idxs": [
+                                3004,
+                                3001,
+                                3005,
+                                3015
+                            ],
+                            "reference": [
+                                48.323,
+                                -19.471,
+                                97.02
+                            ],
+                            "is_donor": true,
+                            "category": 2,
+                            "_normal": null
+                        },
+                        {
+                            "center": [
+                                50.996,
+                                -19.961,
+                                96.836
+                            ],
+                            "command": "sel @/serialNumber=3008 or serialNumber=3007; di sel; color red sel",
+                            "idxs": [
+                                3007,
+                                3006
+                            ],
+                            "reference": [
+                                50.603,
+                                -18.903,
+                                96.373
+                            ],
+                            "is_donor": false,
+                            "category": 0,
+                            "_normal": [
+                                -0.40159026061141206,
+                                -0.48824666125331107,
+                                -0.7748164042888178
+                            ]
+                        }
+                    ]
+                },
+                "file": "/data/galaxy4/user/jnooree/repo/seoklab/gscreen/examples/dude-sahh/outputs/ganal/../../inputs/receptor_clean.pdb"
+            }
+        }
+    ],
+    "gscreen": "1.0"
+}

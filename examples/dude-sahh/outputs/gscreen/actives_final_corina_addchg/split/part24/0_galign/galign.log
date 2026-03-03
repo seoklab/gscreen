@@ -1,0 +1,5 @@
+Query name                     Template name                       Score
+CHEMBL171700                   NOC_434_1LI4                       0.8244
+CHEMBL77965                    NOC_434_1LI4                       0.8843
+galux-align: processed 2 molecules in 245.094633ms.
+Average (per molecule): 122.5473165ms.
