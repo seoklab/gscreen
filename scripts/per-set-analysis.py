@@ -41,31 +41,6 @@ def ecfp4_weight(df):
     return np.clip(6 * (ecfp4 - 0.1), 0, 0.9)
 
 
-def generate_score(dfs, weight_gen):
-    for df in dfs.values():
-        weight = weight_gen(df)
-        df["score"] = df["shape"] * weight + df["pharma"] * (1 - weight)
-
-
-def filter_by_shape(dfs, threshold: float):
-    filtered = {}
-    for target, df in dfs.items():
-        filtered[target] = df[df["shape"] > threshold].copy()
-    return filtered
-
-
-def filter_by_shape_ratio(dfs, ratio: float):
-    filtered = {}
-    for target, df in dfs.items():
-        kth = math.floor((1 - ratio) * len(df))
-        if kth == len(df):
-            filtered[target] = df.copy()
-        else:
-            idxs = np.argpartition(df["shape"].to_numpy(), kth)[kth:]
-            filtered[target] = df.iloc[idxs, :].copy()
-    return filtered
-
-
 def enrichment_factor(labels, scores, ratio: float = 0.01):
     labels = np.array(labels)
     scores = np.array(scores)
