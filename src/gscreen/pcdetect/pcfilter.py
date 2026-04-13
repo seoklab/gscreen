@@ -164,7 +164,7 @@ class PCFilter(ParallelModule):
         mol = Mol.loadf(mol_bytes)
         all_sites: Dict[Type[Site], List[Site]] = {
             cls: cls.from_mol(mol)
-            for cls in [Hydrophobic, PiStacking, HydrogenBonding]
+            for cls in [Hydrophobic, PiStacking, HydrogenBonding, Charged]
         }
         all_masks: Dict[Type[Site], List[bool]] = {
             cls: [True] * len(sites) for cls, sites in all_sites.items()
