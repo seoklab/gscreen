@@ -84,6 +84,7 @@ def summarize_scores(
     dfs: dict[str, pd.DataFrame],
     method: str,
     ratios: list[float],
+    metric_cols: list[str],
     score_col: str = "score",
     active_col: str = "is_active",
 ):
@@ -100,7 +101,7 @@ def summarize_scores(
     summary = pd.DataFrame.from_dict(
         summary,
         orient="index",
-        columns=["aucroc", "ef 0.1%", "ef 1%", "ef 5%", "ef 10%"],
+        columns=metric_cols,
     )
     summary = summary.rename_axis("target").reset_index(drop=False)
     summary = summary.melt(
@@ -166,6 +167,7 @@ def _load_method_scores(
     bench_home: Path,
     method: str,
     ratios: list[float],
+    metric_cols: list[str],
     similarities: pd.DataFrame,
     skip_missing: bool = False,
 ):
@@ -193,6 +195,7 @@ def _load_method_scores(
         method_scores,
         method=_method_name_map.get(method, method),
         ratios=ratios,
+        metric_cols=metric_cols,
     )
 
     method_scores: pd.DataFrame = pd.concat(
@@ -230,7 +233,9 @@ def main(
     bench_home = bench_home / db
     if fallback_home is not None:
         fallback_home = fallback_home / db
+
     ratios = list(map(float, ef_ratios.split(",")))
+    metric_cols = ["aucroc", *[f"ef {ratio * 100:1g}%" for ratio in ratios]]
 
     typer.echo(f"Loading gscreen scores for {db}...")
     gscreen_scores = _load_gscreen_scores(
@@ -243,23 +248,27 @@ def main(
         gscreen_scores,
         method="GS-S",
         ratios=ratios,
+        metric_cols=metric_cols,
         score_col="shape",
     )
     gsp_metrics = summarize_scores(
         gscreen_scores,
         method="GS-P",
         ratios=ratios,
+        metric_cols=metric_cols,
         score_col="pharma",
     )
     gssp_metrics = summarize_scores(
         gscreen_scores,
         method="GS-SP",
         ratios=ratios,
+        metric_cols=metric_cols,
     )
     ecfp4_metrics = summarize_scores(
         gscreen_scores,
         method="ECFP4",
         ratios=ratios,
+        metric_cols=metric_cols,
         score_col="ecfp4",
     )
 
@@ -274,6 +283,7 @@ def main(
         bench_home,
         "ls-align",
         ratios,
+        metric_cols,
         target_sims,
         skip_missing=skip_missing,
     )
@@ -281,6 +291,7 @@ def main(
         bench_home,
         "pharmagist",
         ratios,
+        metric_cols,
         target_sims,
         skip_missing=skip_missing,
     )
@@ -288,6 +299,7 @@ def main(
         bench_home,
         "autodock-vina",
         ratios,
+        metric_cols,
         target_sims,
         skip_missing=skip_missing,
     )
@@ -314,7 +326,11 @@ def main(
         all_metrics.groupby(["method", "metric"])
         .mean(numeric_only=True)
         .reorder_levels([1, 0])
-        .loc[["aucroc", "ef 0.1%", "ef 1%", "ef 5%", "ef 10%"], all_methods, :]
+        .loc[
+            ["aucroc", *[f"ef {ratio * 100:1g}%" for ratio in ratios]],
+            all_methods,
+            :,
+        ]
     )
 
     target_cutoff = {
