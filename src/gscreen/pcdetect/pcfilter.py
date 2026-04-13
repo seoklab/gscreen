@@ -226,9 +226,11 @@ def _eval_interaction(
         for ref, weight in pc:
             callbacks.on_begin()
             for j, site in enumerate(sites):
-                if t.evaluate(ref, site, strict=strict):
-                    callbacks.on_success(weight)
-                    ref_counts[i] += 1
+                score = t.evaluate(ref, site, strict=strict)
+                if score != 0:
+                    callbacks.on_success(weight * score)
+                    ref_counts[i] += score
+                if score > 0:
                     no_interaction[j] = False
             callbacks.on_end()
             i += 1

@@ -1,3 +1,4 @@
+import functools
 import logging
 import math
 from abc import abstractmethod
@@ -17,6 +18,7 @@ from typing import (
 
 import networkx as nx
 import numpy as np
+from openbabel import openbabel as ob
 from scipy.cluster import hierarchy as hier
 from scipy.spatial import distance as D
 
@@ -33,6 +35,7 @@ __all__ = [
     "Hydrophobic",
     "HydrogenBonding",
     "Pharmacophore",
+    "Charged",
 ]
 
 _logger = logging.getLogger(__name__)
@@ -54,7 +57,7 @@ _cos_165 = -_cos_15
 
 
 class Site(Serializable, register=False):
-    def __init__(self, center: Vector, idxs: List[int] = None):
+    def __init__(self, center: Vector, idxs: Optional[List[int]] = None):
         super().__init__()
         self.center: Vector = center
         self.idxs: Optional[List[int]] = idxs
@@ -81,7 +84,7 @@ class Site(Serializable, register=False):
 
     @staticmethod
     @abstractmethod
-    def evaluate(reference: _S, query: _S, strict: bool = True) -> bool:
+    def evaluate(reference: _S, query: _S, strict: bool = True) -> int:
         pass
 
     @classmethod
@@ -89,7 +92,7 @@ class Site(Serializable, register=False):
     def from_mol(cls: Type[_S], mol: Mol, **kwargs) -> List[_S]:
         pass
 
-    def interact(self, other: "Site", strict: bool = True) -> bool:
+    def interact(self, other: "Site", strict: bool = True) -> int:
         """Check interaction between self and other.
 
         Parameters
@@ -99,18 +102,18 @@ class Site(Serializable, register=False):
 
         Returns
         -------
-        bool
-            `True` if the two sites interact. `False` otherwise.
-            Returns `False` if `not isinstance(self, type(other))` and
+        int
+            Score of interaction between self and other.
+            Returns `0` if `not isinstance(self, type(other))` and
             `not isinstance(other, type(self))`.
         """
         if not isinstance(other, type(self)):
             if isinstance(self, type(other)):
                 return other.interact_impl(self, strict)
-            return False
+            return 0
         return self.interact_impl(other, strict)
 
-    def overlap(self, other: "Site", strict: bool = True) -> bool:
+    def overlap(self, other: "Site", strict: bool = True) -> int:
         """Check overlap between self and other.
 
         Parameters
@@ -120,19 +123,19 @@ class Site(Serializable, register=False):
 
         Returns
         -------
-        bool
-            `True` if the two sites overlap. `False` otherwise.
-            Returns `False` if `not isinstance(self, type(other))` and
+        int
+            Score of overlap between self and other.
+            Returns `0` if `not isinstance(self, type(other))` and
             `not isinstance(other, type(self))`.
         """
         if not isinstance(other, type(self)):
             if isinstance(self, type(other)):
                 return other.overlap_impl(self, strict)
-            return False
+            return 0
         return self.overlap_impl(other, strict)
 
     @abstractmethod
-    def interact_impl(self: _S, other: _S, strict: bool) -> bool:
+    def interact_impl(self: _S, other: _S, strict: bool) -> int:
         """Check interaction between self and other.
 
         `isinstance(other, type(self))` is guaranteed to be `True`.
@@ -140,12 +143,12 @@ class Site(Serializable, register=False):
         pass
 
     @abstractmethod
-    def overlap_impl(self: _S, other: _S, strict: bool) -> bool:
+    def overlap_impl(self: _S, other: _S, strict: bool) -> int:
         """Check overlap between self and other.
 
         `isinstance(other, type(self))` is guaranteed to be `True`.
         """
-        return D.euclidean(self.center, other.center) <= 1.0
+        return int(D.euclidean(self.center, other.center) <= 1.0)
 
     @abstractmethod
     def to_chimera_command(self, color: str = None) -> str:
@@ -240,7 +243,7 @@ class PiStacking(Site):
     @staticmethod
     def evaluate(
         reference: "PiStacking", query: "PiStacking", strict: bool = True
-    ) -> bool:
+    ) -> int:
         return reference.interact(query, strict=strict)
 
     @classmethod
@@ -265,20 +268,19 @@ class PiStacking(Site):
             cls.from_coords(mol.coords[ring], ring) for ring in mol.aromatics
         ]
 
-    def interact_impl(self, other: "PiStacking", strict: bool) -> bool:
+    def interact_impl(self, other: "PiStacking", strict: bool) -> int:
         cntr_diff = other.center - self.center
 
         # cos(angle) = -cos(180 - angle)
         cos_angle = abs(self.plane.dot(other.plane))
         if cos_angle >= _cos_45:
             return self._interact_displaced(other, cntr_diff, strict)
-        if cos_angle < _cos_45:
-            return self._interact_tshaped(other, cntr_diff, strict)
-        return False
+
+        return self._interact_tshaped(other, cntr_diff, strict)
 
     def _interact_displaced(
         self, other: "PiStacking", cntr_diff: np.ndarray, strict: bool
-    ) -> bool:
+    ) -> int:
         def _check_offset(this: "PiStacking", offset):
             return this.radius - 1.5 <= offset < this.radius + 1.5
 
@@ -291,11 +293,11 @@ class PiStacking(Site):
             interact = _check_offset(self, cntr_offset) or _check_offset(
                 other, cntr_offset
             )
-        return interact
+        return int(interact)
 
     def _interact_tshaped(
         self, other: "PiStacking", cntr_diff: np.ndarray, strict: bool
-    ) -> bool:
+    ) -> int:
         diff_normalized = geom.normalized(cntr_diff)
         this_cos_angle = abs(self.plane.dot(diff_normalized))
         other_cos_angle = abs(other.plane.dot(diff_normalized))
@@ -306,8 +308,9 @@ class PiStacking(Site):
         )
 
     def overlap_impl(self, other: "PiStacking", strict: bool):
-        return super().overlap_impl(other, strict) and (
-            abs(self.plane.dot(other.plane)) >= _cos_30
+        return int(
+            super().overlap_impl(other, strict)
+            and (abs(self.plane.dot(other.plane)) >= _cos_30)
         )
 
     def to_chimera_command(self, color: str = None):
@@ -384,7 +387,7 @@ class Hydrophobic(Site):
     @staticmethod
     def evaluate(
         reference: "Hydrophobic", query: "Hydrophobic", strict: bool = True
-    ) -> bool:
+    ) -> int:
         return reference.overlap(query, strict=strict)
 
     @classmethod
@@ -578,17 +581,17 @@ class Hydrophobic(Site):
         allowed = self.radius + other.radius
         if strict:
             allowed += self._cutoff
-        return distance <= allowed
+        return int(distance <= allowed)
 
     def overlap_impl(self, other: "Hydrophobic", strict: bool):
         distance = D.euclidean(self.center, other.center)
         if strict:
-            return (
+            return int(
                 distance <= self._cutoff
                 or distance <= self.radius + other.radius
             )
-        else:
-            return distance <= self.radius + other.radius + self._cutoff
+
+        return int(distance <= self.radius + other.radius + self._cutoff)
 
 
 class HBCategory(IntEnum):
@@ -833,28 +836,28 @@ class HydrogenBonding(Site):
         reference: "HydrogenBonding",
         query: "HydrogenBonding",
         strict: bool = True,
-    ) -> bool:
+    ) -> int:
         return reference.interact(query, strict=strict)
 
-    def interact_impl(self, other: "HydrogenBonding", strict: bool) -> bool:
+    def interact_impl(self, other: "HydrogenBonding", strict: bool) -> int:
         if self.is_donor == other.is_donor:
-            return False
+            return 0
 
         if self.is_donor:
             return _hbond_interact(self, other, strict)
         else:
             return _hbond_interact(other, self, strict)
 
-    def overlap_impl(self, other: "HydrogenBonding", strict: bool) -> bool:
+    def overlap_impl(self, other: "HydrogenBonding", strict: bool) -> int:
         if not (
             self.is_donor == other.is_donor
             and self.category == other.category
             and super().overlap_impl(other, strict)
         ):
-            return False
+            return 0
 
         if not strict or self.category == HBCategory.WATER:
-            return True
+            return 1
 
         if self.is_donor and self.category == HBCategory.THETA_TAU:
             ref_close = D.sqeuclidean(self.reference, other.reference) < 0.25
@@ -868,15 +871,15 @@ class HydrogenBonding(Site):
             )
 
         if not ref_close:
-            return False
+            return 0
 
         if self.category != HBCategory.PSI_PHI:
-            return True
+            return 1
 
         normal_dist = D.cosine(self._normal, other._normal)  # type: ignore
         # Consider flipped normal vectors
         normal_dist = min(normal_dist, 2 - normal_dist)
-        return normal_dist < 1 - _cos_15
+        return int(normal_dist < 1 - _cos_15)
 
     def to_chimera_command(self, color: str = None) -> str:
         if not self.idxs:
@@ -884,6 +887,96 @@ class HydrogenBonding(Site):
 
         sel_arg = " or ".join(f"serialNumber={i + 1}" for i in self.idxs)
         cmd = f"sel @/{sel_arg}; di sel; color {color or 'red'} sel"
+        return cmd
+
+
+class Charged(Site):
+    def __init__(
+        self,
+        center: Vector,
+        charge: int,
+        idxs: Optional[List[int]] = None,
+    ):
+        super().__init__(center, idxs)
+        self.charge: int = charge
+
+    def __getstate__(self) -> SerializableDic:
+        return super().__getstate__() | {
+            "charge": self.charge,
+        }
+
+    def __setstate__(self, state: SerializableDic):
+        super().__setstate__(state)
+        self.charge = state["charge"]  # type: ignore
+
+    @classmethod
+    def from_mol(
+        cls,
+        mol: Mol,
+        protein: bool = False,
+        **kwargs,
+    ):
+        if protein:
+            return _protein_charged_residues(mol)
+        return _ligand_charged_sites(mol)
+
+    @classmethod
+    def cluster(
+        cls,
+        sites: List["Charged"],
+        cutoff: float = 2.5,
+    ) -> List[Tuple["Charged", int]]:
+        if len(sites) < 2:
+            return [(site, 1) for site in sites]
+
+        classified: Dict[int, List["Charged"]] = defaultdict(list)
+        for site in sites:
+            classified[site.charge].append(site)
+
+        result = []
+        for charge, sites in classified.items():
+            cntrs = np.stack([site.center for site in sites])
+            clustered = _cluster_sites_by(sites, cntrs, cutoff)
+
+            for sites in clustered:
+                cntrs = np.stack([site.center for site in sites])
+                result.append((cls(cntrs.mean(axis=0), charge), len(sites)))
+        return result
+
+    @staticmethod
+    def evaluate(
+        reference: "Charged",
+        query: "Charged",
+        strict: bool = True,
+    ) -> int:
+        return reference.interact(query, strict=strict)
+
+    def interact_impl(self, other: "Charged", strict: bool) -> int:
+        dist = D.euclidean(self.center, other.center)
+
+        # Ligandscout
+        if not 1.5 <= dist <= 5.6:
+            return 0
+
+        return -self.charge * other.charge
+
+    def overlap_impl(self, other: "Charged", strict: bool) -> int:
+        distance = D.euclidean(self.center, other.center)
+        return int(self.charge * other.charge > 0 and distance <= 2.5)
+
+    def to_chimera_command(self, color: str = "") -> str:
+        assert not color, (
+            "Color is determined by charge, cannot be set manually."
+        )
+
+        cmd = (
+            "shape sphere center "
+            f"{','.join(f'{x:.3f}' for x in self.center)} mesh true"
+        )
+        if self.charge > 0:
+            cmd += " color red"
+        else:
+            cmd += " color blue"
         return cmd
 
 
@@ -923,14 +1016,14 @@ def _cluster_clusters_by(
 
 def _interact_tshaped(
     base: PiStacking, cntr_diff: np.ndarray, strict: bool
-) -> bool:
+) -> int:
     cntr_distance = np.linalg.norm(cntr_diff)
     interact = cntr_distance <= 8.0
     if strict and interact:
         cntr_diff_perpendicular = base.plane.dot(cntr_diff) * base.plane
         cntr_offset = np.linalg.norm(cntr_diff - cntr_diff_perpendicular)
         interact = cntr_offset < base.radius + 1.0
-    return interact  # type: ignore
+    return int(interact)
 
 
 def _hbond_nu_tau_angle_check(dn_vec: Vector, da_vec: Vector):
@@ -979,7 +1072,7 @@ _acc_angle_checkers = (
 
 def _hbond_interact(
     don: HydrogenBonding, acc: HydrogenBonding, strict: bool
-) -> bool:
+) -> int:
     # H: donor hydrogen, D: donor, A: acceptor
     if don.category == HBCategory.THETA_TAU:
         distsq = 2.5 * 2.5  # H - A distance
@@ -991,7 +1084,7 @@ def _hbond_interact(
     # Check distance
     is_close = D.sqeuclidean(don.center, acc.center) <= distsq
     if not (strict and is_close):
-        return is_close  # type: ignore
+        return int(is_close)
 
     # Donor geometry
     if don.category != HBCategory.WATER:
@@ -999,14 +1092,179 @@ def _hbond_interact(
         dc_ac_vec = acc.center - don.center
         don_angle_ok = _don_angle_checkers[don.category](don_cr_vec, dc_ac_vec)
         if not don_angle_ok:
-            return False
+            return 0
 
     # Acceptor geometry
     if acc.category != HBCategory.WATER:
         acc_cr_vec = acc.reference - acc.center
         acc_angle_ok = _acc_angle_checkers[acc.category](
             acc_cr_vec, ad_vec, acc._normal
-        )  # type: ignore
-        return acc_angle_ok  # type: ignore
+        )
+        return int(acc_angle_ok)
 
-    return True
+    return 1
+
+
+_charged_sidechain = {
+    "ARG": (+1, frozenset({"NE", "CZ", "NH1", "NH2"})),
+    "HIS": (+1, frozenset({"CG", "ND1", "CD2", "CE1", "NE2"})),
+    "LYS": (+1, frozenset({"NZ"})),
+    "ASP": (-1, frozenset({"CG", "OD1", "OD2"})),
+    "GLU": (-1, frozenset({"CD", "OE1", "OE2"})),
+}
+
+
+def _protein_charged_residues(mol: Mol) -> List[Charged]:
+    """Find charged sidechain centers for protein residues.
+
+    Positive: ARG (guanidinium), HIS (imidazole), LYS (amine)
+    Negative: ASP (carboxylate), GLU (carboxylate)
+
+    Parameters
+    ----------
+    mol : Mol
+        Protein molecule with residue information.
+
+    Returns
+    -------
+    List[Charged]
+        Charged sites, one per charged residue.
+    """
+    charged: List[Charged] = []
+
+    for res_idx in range(mol.obmol.NumResidues()):
+        residue: ob.OBResidue = mol.obmol.GetResidue(res_idx)
+        resname = residue.GetName().strip()
+
+        entry = _charged_sidechain.get(resname)
+        if entry is None:
+            continue
+
+        charge, target_names = entry
+        idxs: List[int] = []
+        for atom in ob.OBResidueAtomIter(residue):
+            if residue.GetAtomID(atom).strip() in target_names:
+                idxs.append(atom.GetIdx() - 1)
+
+        if not idxs:
+            continue
+
+        center = mol.coords[idxs].mean(axis=0)
+        charged.append(Charged(center, charge, idxs=idxs))
+
+    return charged
+
+
+# SMARTS patterns for ligand ionizable groups.
+# Each entry: (SMARTS, center_atom_indices_in_match or empty for all).
+# Patterns within each list are ordered by specificity (most specific first);
+# atoms claimed by earlier matches are excluded from later ones.
+_ChargedPattern = Tuple[str, List[int]]
+
+# Some patterns taken from openbabel repository
+# https://github.com/openbabel/openbabel/blob/889c350feb179b43aa43985799910149d4eaa2bc/data/SMARTS_InteLigand.txt
+_positive_smarts: List[_ChargedPattern] = [
+    # Guanidine
+    ("[N;v3X3,v4X4+][CX3](=[N;v3X2,v4X3+])[N;v3X3,v4X4+]", []),
+    # Amidine
+    ("[NX3;!$(NC=[O,S])][CX3;$([CH]),$([C][#6])]=[NX2;!$(NC=[O,S])]", []),
+    # Amine
+    ("[NX3+0,NX4+;!$([N]~[!#6]);!$([N]*~[#7,#8,#15,#16])]", []),
+    # Imidazole, etc.
+    ("[cX3]1[nX2&H0,nX3+&H1][cX3][nX3][cX3]1", []),
+    # Pyridine, etc.
+    ("[nX2,nX3+&H1]", []),
+    # Generic positive charge not adjacent to a negative charge
+    ("[+1,+2,+3;!$([+1,+2,+3]~[-1,-2,-3])]", []),
+]
+
+_negative_smarts: List[_ChargedPattern] = [
+    # Tetrazole: 5-membered ring with 4 N and 1 C
+    ("[#7]1~[#7]~[#7]~[#7]~[#6]1", []),
+    # Trifluoromethyl sulfonamide: center at NH
+    ("[$([NX-]),$([NX2;H1,H2])]S(=O)(=O)C(F)(F)F", [0]),
+    # Sulfonic acid / sulfonate
+    ("[SX4;$([H1]),$([H0][#6])](=[OX1])(=[OX1])[$([OX2H]),$([OX1-])]", []),
+    # Phosphonic acid / phosphonate
+    (
+        "[PX4;$([H1]),$([H0][#6])](=[OX1])([$([OX2H]),$([OX1-])])[$([OX2H]),$([OX1-])]",
+        [],
+    ),
+    # Sulfinic acid / sulfinate
+    ("[SX3;$([H1]),$([H0][#6])](=[OX1])[$([OX2H]),$([OX1-])]", []),
+    # Carboxylic acid / carboxylate
+    ("[CX3;$([R0][#6]),$([H1R0])](=[OX1])[$([OX2H]),$([OX1-])]", []),
+    # Phosphinic acid / phosphinate
+    (
+        "[PX4;$([H2]),$([H1][#6]),$([H0]([#6])[#6])](=[OX1])[$([OX2H]),$([OX1-])]",
+        [],
+    ),
+    # Generic negative charge not adjacent to a positive charge
+    ("[-1,-2,-3;!$([-1,-2,-3]~[+1,+2,+3])]", []),
+]
+
+
+@functools.cache
+def _compile_smarts_pattern(pattern: str) -> ob.OBSmartsPattern:
+    sp = ob.OBSmartsPattern()
+    if not sp.Init(pattern):
+        raise ValueError(f"Invalid SMARTS pattern: {pattern}")
+    return sp
+
+
+def _match_smarts_patterns(
+    mol: Mol,
+    patterns: List[_ChargedPattern],
+    claimed: Set[int],
+    default_charge: int,
+):
+    seen: Set[FrozenSet[int]] = set()
+
+    for smarts, center_idxs in patterns:
+        sp = _compile_smarts_pattern(smarts)
+        sp.Match(mol.obmol)
+
+        for match in sp.GetUMapList():
+            idxs: List[int] = [idx - 1 for idx in match]
+            idxs = [idxs[i] for i in center_idxs] or idxs
+
+            key = frozenset(idxs)
+            if key in seen or claimed.issuperset(idxs):
+                continue
+
+            seen.add(key)
+            claimed.update(idxs)
+
+            center = mol.coords[idxs].mean(axis=0)
+            charge = (
+                sum(mol.atoms[i].formalcharge for i in idxs) or default_charge
+            )
+            yield Charged(center, charge, idxs=idxs)
+
+
+def _ligand_charged_sites(mol: Mol) -> List[Charged]:
+    """Detect ionizable groups in a small-molecule ligand.
+
+    Positive ionizable: basic amines, amidines, guanidines, and formal
+    positive charges not adjacent to a negative charge.
+
+    Negative ionizable: trifluoromethyl sulfonamides, sulfonic/sulfinic/
+    carboxylic/phosphonic/phosphinic acids, tetrazoles, and formal negative
+    charges not adjacent to a positive charge.
+
+    Parameters
+    ----------
+    mol : Mol
+        Small-molecule ligand.
+
+    Returns
+    -------
+    List[Charged]
+        Charged sites for all detected ionizable groups.
+    """
+    claimed: Set[int] = set()
+    sites = [
+        *_match_smarts_patterns(mol, _positive_smarts, claimed, +1),
+        *_match_smarts_patterns(mol, _negative_smarts, claimed, -1),
+    ]
+    return sites
