@@ -952,13 +952,11 @@ class Charged(Site):
         return reference.interact(query, strict=strict)
 
     def interact_impl(self, other: "Charged", strict: bool) -> int:
-        dist = D.euclidean(self.center, other.center)
-
-        # Ligandscout
-        if not 1.5 <= dist <= 5.6:
+        if self.charge * other.charge > 0:
             return 0
 
-        return -self.charge * other.charge
+        dist = D.euclidean(self.center, other.center)
+        return int(1.5 <= dist <= 5.6)
 
     def overlap_impl(self, other: "Charged", strict: bool) -> int:
         distance = D.euclidean(self.center, other.center)
