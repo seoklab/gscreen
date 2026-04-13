@@ -42,7 +42,7 @@ def analyze(rec: Path, lig: Path):
         HydrogenBonding.from_mol(ligand), HydrogenBonding.from_mol(receptor)
     )
     lchg, rchg = _filter_interaction(
-        Charged.from_mol(ligand), Charged.from_mol(receptor)
+        Charged.from_mol(ligand), Charged.from_mol(receptor, protein=True)
     )
 
     return Report(
