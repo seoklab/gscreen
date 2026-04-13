@@ -926,15 +926,16 @@ class Charged(Site):
         sites: List["Charged"],
         cutoff: float = 2.5,
     ) -> List[Tuple["Charged", int]]:
-        if len(sites) < 2:
-            return [(site, 1) for site in sites]
-
         classified: Dict[int, List["Charged"]] = defaultdict(list)
         for site in sites:
             classified[site.charge].append(site)
 
         result = []
         for charge, sites in classified.items():
+            if len(sites) < 2:
+                result.append((sites[0], 1))
+                continue
+
             cntrs = np.stack([site.center for site in sites])
             clustered = _cluster_sites_by(sites, cntrs, cutoff)
 
