@@ -5,7 +5,6 @@ from typing import Dict, Iterable, List, Optional, Tuple, Type
 
 from ..api import Serializable, SerializableDic, SerializableObj
 from .pharmacophore import (
-    Charged,
     HydrogenBonding,
     Hydrophobic,
     Pharmacophore,
@@ -89,7 +88,7 @@ def load_reports(
 
     rec_pcs = _merge_pcs(report.rec_pc for report in reports)
     if rec_pcs:
-        for cls in (PiStacking, HydrogenBonding, Charged):
+        for cls in (PiStacking, HydrogenBonding):
             clustered[cls] = _cluster_pcs(cls, rec_pcs)
 
     total_cnt = sum(cnt for pcs in clustered.values() for _, cnt in pcs)
