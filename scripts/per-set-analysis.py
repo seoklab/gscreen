@@ -9,6 +9,8 @@ import typer
 from sklearn import metrics
 from typer import Typer
 
+from shared_metrics import ecfp4_weight
+
 app = Typer(pretty_exceptions_enable=False)
 
 all_methods = [
@@ -34,11 +36,6 @@ _method_name_map = {
     "pharmagist": "PharmaGist",
     "autodock-vina": "Autodock Vina",
 }
-
-
-def ecfp4_weight(df):
-    ecfp4 = df["ecfp4"].to_numpy()
-    return np.clip(6 * (ecfp4 - 0.1), 0, 0.9)
 
 
 def enrichment_factor(labels, scores, ratio: float = 0.01):

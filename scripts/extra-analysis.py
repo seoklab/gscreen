@@ -1,15 +1,11 @@
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from typer import Typer
 
+from shared_metrics import ecfp4_weight
+
 app = Typer(pretty_exceptions_enable=False)
-
-
-def ecfp4_weight(df):
-    ecfp4 = df["ecfp4"].to_numpy()
-    return np.clip(6 * (ecfp4 - 0.1), 0, 0.9)
 
 
 @app.command()

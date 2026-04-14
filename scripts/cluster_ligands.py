@@ -8,6 +8,8 @@ from openbabel import pybel
 from scipy.cluster import hierarchy as hier
 from scipy.spatial.distance import squareform
 
+from shared_metrics import tanimoto_distance_matrix
+
 ob.obErrorLog.StopLogging()
 
 
@@ -41,20 +43,6 @@ def read_crystal_pdbid(target_dir: Path) -> str | None:
     return None
 
 
-def tanimoto_distance_matrix(fps: list[pybel.Fingerprint]):
-    """Compute condensed pairwise Tanimoto distance matrix."""
-    n = len(fps)
-    dists = np.empty(n * (n - 1) // 2, dtype=float)
-
-    k = 0
-    for i in range(n):
-        for j in range(i + 1, n):
-            dists[k] = 1.0 - (fps[i] | fps[j])
-            k += 1
-
-    return dists
-
-
 def cluster_target(names, fps, method, max_clusters):
     """Cluster ligands for a single target.
 
@@ -82,7 +70,7 @@ def find_cluster_centers(names, labels, dist_matrix, crystal_idx=None):
     cluster (overriding the medoid).
 
     Returns dict mapping cluster_id -> (center_index, center_name) where
-    center_name is 'crystal_ligand' for the crystal cluster, else names[idx].
+    center_name is names[idx].
     """
     crystal_cid = labels[crystal_idx] if crystal_idx is not None else None
     centers: dict[int, tuple[int, str]] = {}
@@ -176,8 +164,7 @@ def main():
                 crystal_idx,
             )
         else:
-            name = "crystal_ligand" if crystal_idx == 0 else names[0]
-            centers = {1: (0, name)}
+            centers = {1: (0, names[0])}
 
         print(
             f"{target}: {len(fps)} ligands -> {n_clusters} clusters "
@@ -218,7 +205,7 @@ def main():
     for target, group in df.groupby("target"):
         sizes = group["cluster"].value_counts()
         print(
-            f"  {target}: {len(group)} ligands, {sizes.nunique()} clusters "
+            f"  {target}: {len(group)} ligands, {len(sizes)} clusters "
             f"(singletons={sum(sizes == 1)}, max={sizes.max()})"
         )
         for cid, cgroup in group.groupby("cluster"):

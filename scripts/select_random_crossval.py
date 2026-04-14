@@ -9,24 +9,12 @@ from scipy.cluster import hierarchy as hier
 from scipy.spatial.distance import squareform
 from tqdm import tqdm
 
+from shared_metrics import tanimoto_distance_matrix
 from gscreen import io as gio
 
 ob.obErrorLog.StopLogging()
 
 app = typer.Typer(pretty_exceptions_enable=False)
-
-
-def _tanimoto_distance_matrix(fps: list[pybel.Fingerprint]):
-    n = len(fps)
-    dists = np.empty(n * (n - 1) // 2, dtype=float)
-
-    k = 0
-    for i in range(n):
-        for j in range(i + 1, n):
-            dists[k] = 1.0 - (fps[i] | fps[j])
-            k += 1
-
-    return dists
 
 
 def _cluster_and_select(mols: list[gio.Mol2], max_clusters: int, method: str):
@@ -37,7 +25,7 @@ def _cluster_and_select(mols: list[gio.Mol2], max_clusters: int, method: str):
 
     fps = [pybel.readstring("mol2", str(mol)).calcfp("ecfp4") for mol in mols]
 
-    dists = _tanimoto_distance_matrix(fps)
+    dists = tanimoto_distance_matrix(fps)
     lnk = hier.linkage(dists, method=method)
     labels = hier.fcluster(lnk, max_clusters, criterion="maxclust")
     dist_sq = squareform(dists)
