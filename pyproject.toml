@@ -35,6 +35,7 @@ target-version = "py39"
 src = ["src"]
 extend-include = ["*.pyi", "*.ipynb"]
 extend-exclude = [".github", ".vscode", "build", "dist", "*.pyc"]
+extend-select = ["I"]
 ignore = ["E4", "E74", "F403", "F405"]
 
 [tool.ruff.per-file-ignores]

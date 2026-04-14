@@ -18,7 +18,7 @@ def _filter_interaction(lpcs: List[_S], rpcs: List[_T]):
     r_mask = [False] * len(rpcs)
     for i, lpc in enumerate(lpcs):
         for j, rpc in enumerate(rpcs):
-            if lpc.interact(rpc):
+            if lpc.interact(rpc) > 0:
                 l_mask[i] = True
                 r_mask[j] = True
 
@@ -41,10 +41,18 @@ def analyze(rec: Path, lig: Path):
     lhbs, rhbs = _filter_interaction(
         HydrogenBonding.from_mol(ligand), HydrogenBonding.from_mol(receptor)
     )
+    lchg, rchg = _filter_interaction(
+        Charged.from_mol(ligand), Charged.from_mol(receptor, protein=True)
+    )
 
     return Report(
-        {PiStacking: lars, Hydrophobic: lhp, HydrogenBonding: lhbs},
-        {PiStacking: rars, HydrogenBonding: rhbs},
+        {
+            PiStacking: lars,
+            Hydrophobic: lhp,
+            HydrogenBonding: lhbs,
+            Charged: lchg,
+        },
+        {PiStacking: rars, HydrogenBonding: rhbs, Charged: rchg},
         lig,
         rec,
     )
