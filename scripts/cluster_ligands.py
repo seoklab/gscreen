@@ -29,18 +29,15 @@ def load_target_ligands(target_dir: Path):
     return names, fps
 
 
-def read_crystal_pdbid(target_dir: Path) -> str | None:
+def read_crystal_pdbid(target_dir: Path) -> str:
     """Read the 'final: <pdbid>' line from selection.txt."""
     sel = target_dir / "selection.txt"
-    if not sel.is_file():
-        return None
-
     for line in sel.read_text().splitlines():
         line = line.strip()
         if line.startswith("final:"):
             return line.split()[1].strip()
-
-    return None
+    
+    raise ValueError("No pdb id")
 
 
 def cluster_target(names, fps, method, max_clusters):
@@ -149,12 +146,14 @@ def main():
         )
         n_clusters = len(set(clusters))
 
-        crystal_pdbid = read_crystal_pdbid(target_dir)
-        crystal_idx = None
-        if crystal_pdbid is not None:
+        try:
+            crystal_pdbid = read_crystal_pdbid(target_dir)
             crystal_name = f"{crystal_pdbid}_ligand"
-            if crystal_name in names:
-                crystal_idx = names.index(crystal_name)
+            crystal_idx = names.index(crystal_name)
+        except FileNotFoundError:
+            assert len(names) == 1
+            crystal_name = names[0]
+            crystal_idx = 0
 
         if dist_matrix is not None:
             centers = find_cluster_centers(
