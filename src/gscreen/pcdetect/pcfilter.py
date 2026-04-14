@@ -164,7 +164,7 @@ class PCFilter(ParallelModule):
         mol = Mol.loadf(mol_bytes)
         all_sites: Dict[Type[Site], List[Site]] = {
             cls: cls.from_mol(mol)
-            for cls in [Hydrophobic, PiStacking, HydrogenBonding, Charged]
+            for cls in [Hydrophobic, PiStacking, HydrogenBonding]
         }
         all_masks: Dict[Type[Site], List[bool]] = {
             cls: [True] * len(sites) for cls, sites in all_sites.items()
@@ -226,11 +226,9 @@ def _eval_interaction(
         for ref, weight in pc:
             callbacks.on_begin()
             for j, site in enumerate(sites):
-                score = t.evaluate(ref, site, strict=strict)
-                if score != 0:
-                    callbacks.on_success(weight * score)
-                    ref_counts[i] += score
-                if score > 0:
+                if t.evaluate(ref, site, strict=strict):
+                    callbacks.on_success(weight)
+                    ref_counts[i] += 1
                     no_interaction[j] = False
             callbacks.on_end()
             i += 1
