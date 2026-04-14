@@ -46,13 +46,24 @@ def enrichment_factor(labels, scores, ratio: float = 0.01):
     scores = np.array(scores)
 
     total_len = len(scores)
+    n_select = max(1, math.ceil(ratio * total_len))
 
-    kth = math.floor((1 - ratio) * total_len)
-    idxs = np.argpartition(scores, kth)
+    kth = total_len - n_select
+    threshold = np.partition(scores, kth)[kth]
+
+    above = scores > threshold
+    tied = scores == threshold
 
     total_actives = sum(labels)
-    selected_actives = sum(labels[idx] for idx in idxs[kth:])
-    return (selected_actives / (total_len - kth)) / (total_actives / total_len)
+    n_above = np.sum(above)
+    actives_above = np.sum(labels[above])
+    n_tied = np.sum(tied)
+    actives_tied = np.sum(labels[tied])
+
+    n_from_tied = n_select - n_above
+    expected_actives = actives_above + actives_tied * (n_from_tied / n_tied)
+
+    return (expected_actives / n_select) / (total_actives / total_len)
 
 
 def summarize_scores(
