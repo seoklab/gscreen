@@ -103,9 +103,25 @@ def target_average_tani_ratio(
     cutoff: int,
     sort_by: str = "score",
 ):
-    tgt = data[data["target"] == target].sort_values(sort_by, ascending=False)
-    selected = tgt.iloc[:cutoff]
-    return selected["ecfp4"].mean() / tgt["ecfp4"].mean()
+    tgt = data[data["target"] == target]
+    scores = tgt[sort_by].values
+    ecfp4 = tgt["ecfp4"].values
+
+    n_select = max(1, cutoff)
+    kth = len(scores) - n_select
+    threshold = np.partition(scores, kth)[kth]
+
+    above = scores > threshold
+    tied = scores == threshold
+
+    n_above = np.sum(above)
+    n_tied = np.sum(tied)
+    n_from_tied = n_select - n_above
+
+    expected_ecfp4_sum = (
+        ecfp4[above].sum() + ecfp4[tied].sum() * (n_from_tied / n_tied)
+    )
+    return (expected_ecfp4_sum / n_select) / ecfp4.mean()
 
 
 def _load_gscreen_scores(
