@@ -115,8 +115,8 @@ def target_average_tani_ratio(
     n_tied = np.sum(tied)
     n_from_tied = n_select - n_above
 
-    expected_ecfp4_sum = (
-        ecfp4[above].sum() + ecfp4[tied].sum() * (n_from_tied / n_tied)
+    expected_ecfp4_sum = ecfp4[above].sum() + ecfp4[tied].sum() * (
+        n_from_tied / n_tied
     )
     return (expected_ecfp4_sum / n_select) / ecfp4.mean()
 
@@ -214,7 +214,7 @@ def main(
     db_home: Path = Path.home() / "db",
     bench_home: Path = Path.home() / "benchmark",
     fallback_home: Optional[Path] = None,
-    ef_ratios: str = "0.001,0.01,0.05,0.1",
+    ef_ratios: str = "0.01,0.05",
     similarity_enrichment_cutoff: float = 0.01,
     skip_missing: bool = False,
 ):
