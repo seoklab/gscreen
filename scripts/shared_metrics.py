@@ -1,10 +1,33 @@
+import logging
 import math
+from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
+from openbabel import pybel
+from sklearn import metrics as skmetrics
+
+_logger = logging.getLogger(__name__)
+
+GSCREEN_METHODS = ["GS-S", "GS-P", "GS-SP"]
+BASELINE_METHODS = ["Flexi-LS-align", "PharmaGist", "Autodock Vina"]
+ALL_METHODS = GSCREEN_METHODS + BASELINE_METHODS
+
+METHOD_SLUG_MAP = {
+    "ls-align": "Flexi-LS-align",
+    "pharmagist": "PharmaGist",
+    "autodock-vina": "Autodock Vina",
+}
+
+TICK_LABELS = {
+    "Flexi-LS-align": "LA",
+    "PharmaGist": "PG",
+    "Autodock Vina": "Vina",
+}
 
 
-def tanimoto_distance_matrix(fps: list):
+def tanimoto_distance_matrix(fps: list[pybel.Fingerprint]):
     """Compute condensed pairwise Tanimoto distance matrix."""
     n = len(fps)
     dists = np.empty(n * (n - 1) // 2, dtype=float)
@@ -47,3 +70,93 @@ def enrichment_factor(labels, scores, ratio: float = 0.01):
     n_from_tied = n_select - n_above
     expected_actives = actives_above + actives_tied * (n_from_tied / n_tied)
     return (expected_actives / n_select) / (total_actives / total_len)
+
+
+def load_gscreen_scores(
+    results: Path,
+    db_home: Path,
+    fallback: Optional[Path] = None,
+) -> dict[str, pd.DataFrame]:
+    scores: dict[str, pd.DataFrame] = {}
+    for db_target in sorted(db_home.iterdir()):
+        if not db_target.is_dir():
+            continue
+
+        key = db_target.name
+        score_csv = results / key / "scores.csv"
+        if fallback is not None and not score_csv.is_file():
+            score_csv = fallback / key / "scores.csv"
+
+        df = pd.read_csv(score_csv)
+        if "is_active" not in df.columns:
+            df["is_active"] = df["type"] == "active"
+            df = df.drop(columns=["type"])
+            df = df.rename(
+                columns={
+                    "pharma_score": "pharma",
+                    "shape_score": "shape",
+                    "tani_sim": "ecfp4",
+                }
+            )
+
+        weight = ecfp4_weight(df)
+        df["score"] = df["shape"] * weight + df["pharma"] * (1 - weight)
+        df["id"] = df["id"].astype(str).str.strip()
+        df["target"] = key
+        scores[key] = df
+
+    return scores
+
+
+def load_method_scores(
+    bench_home: Path,
+    method_slug: str,
+    skip_missing: bool = False,
+) -> dict[str, pd.DataFrame]:
+    scores: dict[str, pd.DataFrame] = {}
+    outputs = bench_home / method_slug / "outputs"
+    if not outputs.is_dir():
+        if skip_missing:
+            _logger.warning("No outputs directory for %s", method_slug)
+            return scores
+        raise FileNotFoundError(outputs)
+
+    for target_dir in sorted(outputs.iterdir()):
+        if not target_dir.is_dir():
+            continue
+
+        try:
+            df = pd.read_csv(target_dir / "scores.csv", index_col=0)
+        except FileNotFoundError:
+            if skip_missing:
+                _logger.warning(
+                    "Missing scores for %s in %s",
+                    target_dir.name,
+                    method_slug,
+                )
+                continue
+            raise
+
+        df["id"] = df["id"].astype(str).str.strip()
+        df["target"] = target_dir.name
+        scores[target_dir.name] = df
+
+    return scores
+
+
+def compute_metrics(
+    df: pd.DataFrame,
+    score_col: str,
+    active_col: str,
+    ratios: list[float],
+    metric_names: list[str],
+) -> dict[str, float]:
+    return {
+        metric_names[0]: skmetrics.roc_auc_score(
+            df[active_col], df[score_col]
+        ),
+        **{
+            name: enrichment_factor(df[active_col], df[score_col], ratio=r)
+            for name, r in zip(metric_names[1:], ratios)
+        },
+    }
