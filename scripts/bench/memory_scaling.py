@@ -15,8 +15,8 @@ from gscreen.io import Mol2Reader
 
 app = typer.Typer(pretty_exceptions_enable=False)
 
-_small_subsets = [1, 10, 100, 250]
-_large_subsets = [100, 250, 500, 1000]
+_small_subsets = [1, 10, 50, 100]
+_large_subsets = [50, 100, 500, 1000]
 
 
 def _make_subset(src: Path, n: int, dst: Path) -> int:
@@ -205,12 +205,10 @@ def main(
     runs: list[tuple[str, int, list[int]]] = [
         # Galign
         ("galign", 1, _small_subsets),
-        ("galign", 8, _small_subsets),
         ("galign", 32, _large_subsets),
         ("galign", 128, _large_subsets),
         # Gscreen
         ("gscreen", 1, _small_subsets),
-        ("gscreen", 8, _small_subsets),
         ("gscreen", 32, _large_subsets),
         ("gscreen", 128, _large_subsets),
         # lsalign
