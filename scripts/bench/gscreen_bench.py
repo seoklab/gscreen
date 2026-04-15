@@ -1,100 +1,90 @@
-import argparse
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
-import numpy as np
 import pandas as pd
+import typer
 from openbabel import pybel
 
-from gscreen.cli.ganal import analyze as ganal
-from gscreen.io import Mol2Reader
-from gscreen.pcdetect import PCFilter, load_reports
-from gscreen.pipeline import Module, Parallelizer, Pipeline, modulize
+from gscreen import pcdetect
+from gscreen.cli.gscreen import _load_clusters
+from gscreen.pipeline import Parallelizer, Pipeline, modulize
 from gscreen.tools import Chimera, GAlign
 
 
-def run_ganal(receptor: Path, ref: Path):
-    report = ganal(receptor, ref)
-    return load_reports([report])
-
-
-def run_pcfilter(screen: Module, ligands: Path, output: Path):
-    screen(ligands, output)
-    scores = pd.read_csv(output.parent / "2_pcfilter/scores.csv")
-    return scores[["name", "score"]]
-
-
-def final_scoring(
-    ligands: Path, ref_fp: pybel.Fingerprint, scores: np.ndarray
-):
-    sims = np.array(
-        [
-            ref_fp | mol.calcfp("ecfp4")
-            for mol in pybel.readfile("mol2", str(ligands))
-        ]
-    )
-    weights = np.clip(6 * (sims - 0.1), 0, 0.9)
-
-    shape_scores = np.array(
-        [GAlign.model_score(mol) for mol in Mol2Reader(ligands)]
-    )
-
-    return weights * shape_scores + (1 - weights) * scores
-
-
-def run_gscreen(
-    ligands: Path,
+def gscreen_main(
+    input_file: Path,
+    ref_mol: Path,
+    report: Path,
     output: Path,
-    screen: Module,
-    ref_fp: pybel.Fingerprint,
+    nproc: int,
 ):
-    df = run_pcfilter(screen, ligands, output)
-    scores = final_scoring(output, ref_fp, df["score"].to_numpy())
-    df["score"] = scores
+    clusters = _load_clusters(report)
+
+    ref = next(pybel.readfile("mol2", str(ref_mol)))
+    ref_fp = ref.calcfp("ecfp4")
+
+    chimera = Chimera()
+    addh_module = modulize(chimera.addh, modname="addh")
+
+    modules = [
+        GAlign(ref_mol, cutoff=0.0, nproc=1),
+        addh_module,
+        pcdetect.PCFilter(ref_fp, clusters, cutoff=0.0, nproc=1),
+    ]
+
+    result = output / "output.mol2"
+
+    pipeline = Parallelizer(Pipeline(modules), nproc=nproc)
+    pipeline(input_file, result)
+
+
+def _load_single_target(results: Path):
+    cols = ["name", "pharma_score", "shape_score", "tani_sim"]
+    try:
+        return pd.read_csv(results / "2_pcfilter/scores.csv")[cols]
+    except FileNotFoundError:
+        return pd.DataFrame(columns=cols)
+
+
+def load_target(results: Path, nproc: int):
+    if nproc < 2:
+        df = _load_single_target(results)
+    else:
+        field_size = len(str(nproc - 1))
+
+        df = pd.concat(
+            [
+                _load_single_target(results / f"split/part{i:0{field_size}d}")
+                for i in range(nproc)
+            ],
+            ignore_index=True,
+        )
+
+    df = df.rename(columns={"name": "id"})
+    df["pharma_score"] = df["pharma_score"].astype(float)
+    df["shape_score"] = df["shape_score"].astype(float)
+    df["tani_sim"] = df["tani_sim"].astype(float)
     return df
 
 
-def _get_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-j", "--jobs", type=int, default=1)
-    parser.add_argument("-r", "--ref", type=Path, required=True)
-    parser.add_argument("receptor", type=Path)
-    parser.add_argument("ligands", type=Path)
-    parser.add_argument("output", type=Path)
-    return parser
+app = typer.Typer(pretty_exceptions_enable=False)
 
 
-def main():
-    parser = _get_parser()
-    args = parser.parse_args()
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+@app.command()
+def run_target(
+    ref_mol: Path,
+    input_file: Path,
+    target_home: Path,
+    ganal_home: Path,
+    result_home: Path,
+    nproc: int = 1,
+):
+    db, target = target_home.parts[-2:]
+    report = ganal_home / db / target / "ganal.json"
+    gscreen_main(input_file, ref_mol, report, result_home, nproc)
 
-    ref = next(pybel.readfile("mol2", str(args.ref)))
-    ref_fp = ref.calcfp("ecfp4")
-
-    pcs = run_ganal(args.receptor, args.ref)
-
-    screen = Pipeline(
-        [
-            GAlign(args.ref, cutoff=0, nproc=args.jobs),
-            Parallelizer(
-                modulize(Chimera(verbose=False).addh, modname="addh"),
-                nproc=args.jobs,
-            ),
-            PCFilter(pcs, cutoff=0, nproc=args.jobs),
-        ]
-    )
-
-    with TemporaryDirectory() as tmpd:
-        result = run_gscreen(
-            args.ligands,
-            Path(tmpd, "result.mol2"),
-            screen,
-            ref_fp,
-        )
-    df = result.rename({"name": "id", "score": f"gscreen-{args.jobs}"})
-    df.to_csv(args.output, index=False)
+    df = load_target(result_home, nproc)
+    df.to_csv(result_home / "scores.csv", index=False)
 
 
 if __name__ == "__main__":
-    main()
+    app()
