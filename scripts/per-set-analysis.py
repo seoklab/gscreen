@@ -1,4 +1,3 @@
-import math
 from pathlib import Path
 from typing import Optional
 
@@ -6,10 +5,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import typer
+from shared_metrics import ecfp4_weight, enrichment_factor
 from sklearn import metrics
 from typer import Typer
-
-from shared_metrics import ecfp4_weight
 
 app = Typer(pretty_exceptions_enable=False)
 
@@ -20,7 +18,6 @@ all_methods = [
     "Flexi-LS-align",
     "PharmaGist",
     "Autodock Vina",
-    "ECFP4",
 ]
 all_methods_short = [
     "GS-S",
@@ -29,38 +26,12 @@ all_methods_short = [
     "LA",
     "PG",
     "Vina",
-    "ECFP4",
 ]
 _method_name_map = {
     "ls-align": "Flexi-LS-align",
     "pharmagist": "PharmaGist",
     "autodock-vina": "Autodock Vina",
 }
-
-
-def enrichment_factor(labels, scores, ratio: float = 0.01):
-    labels = np.array(labels)
-    scores = np.array(scores)
-
-    total_len = len(scores)
-    n_select = max(1, math.ceil(ratio * total_len))
-
-    kth = total_len - n_select
-    threshold = np.partition(scores, kth)[kth]
-
-    above = scores > threshold
-    tied = scores == threshold
-
-    total_actives = sum(labels)
-    n_above = np.sum(above)
-    actives_above = np.sum(labels[above])
-    n_tied = np.sum(tied)
-    actives_tied = np.sum(labels[tied])
-
-    n_from_tied = n_select - n_above
-    expected_actives = actives_above + actives_tied * (n_from_tied / n_tied)
-
-    return (expected_actives / n_select) / (total_actives / total_len)
 
 
 def summarize_scores(
@@ -115,8 +86,8 @@ def target_average_tani_ratio(
     n_tied = np.sum(tied)
     n_from_tied = n_select - n_above
 
-    expected_ecfp4_sum = (
-        ecfp4[above].sum() + ecfp4[tied].sum() * (n_from_tied / n_tied)
+    expected_ecfp4_sum = ecfp4[above].sum() + ecfp4[tied].sum() * (
+        n_from_tied / n_tied
     )
     return (expected_ecfp4_sum / n_select) / ecfp4.mean()
 
@@ -214,7 +185,7 @@ def main(
     db_home: Path = Path.home() / "db",
     bench_home: Path = Path.home() / "benchmark",
     fallback_home: Optional[Path] = None,
-    ef_ratios: str = "0.001,0.01,0.05,0.1",
+    ef_ratios: str = "0.01,0.05",
     similarity_enrichment_cutoff: float = 0.01,
     skip_missing: bool = False,
 ):
@@ -263,13 +234,6 @@ def main(
         ratios=ratios,
         metric_cols=metric_cols,
     )
-    ecfp4_metrics = summarize_scores(
-        gscreen_scores,
-        method="ECFP4",
-        ratios=ratios,
-        metric_cols=metric_cols,
-        score_col="ecfp4",
-    )
 
     gscreen_scores = pd.concat(gscreen_scores.values(), ignore_index=True)
     gscreen_scores.to_csv(results / "gscreen.csv", index=False)
@@ -311,7 +275,6 @@ def main(
             ls_metrics,
             pg_metrics,
             vina_metrics,
-            ecfp4_metrics,
         ],
         ignore_index=True,
     )
