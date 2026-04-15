@@ -399,7 +399,7 @@ def _compute_summary(df: pd.DataFrame) -> pd.DataFrame:
 # Feasibility table
 # -------------------------------------------------------------------
 
-_RAM_THRESHOLDS_GB = [32, 64, 128, 256, 512, 1024]
+_RAM_THRESHOLDS_GB = [32, 64, 128, 256, 512]
 
 
 def _compute_feasibility(df: pd.DataFrame) -> pd.DataFrame:
@@ -419,14 +419,9 @@ def _compute_feasibility(df: pd.DataFrame) -> pd.DataFrame:
             "n_missing_or_failed": n_missing,
         }
 
-        # Single-thread thresholds
-        for gb in _RAM_THRESHOLDS_GB:
-            mb = gb * 1024
-            row[f"n_exceed_{gb}gb_1t"] = int(np.sum(rss > mb))
-
         # 128-thread projection
         proj = rss * 128
-        for gb in [256, 512, 1024]:
+        for gb in _RAM_THRESHOLDS_GB:
             mb = gb * 1024
             row[f"n_exceed_{gb}gb_128t"] = int(np.sum(proj > mb))
 
