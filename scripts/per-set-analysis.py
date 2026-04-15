@@ -95,7 +95,7 @@ def main(
     db_home: Path = Path.home() / "db",
     bench_home: Path = Path.home() / "benchmark",
     fallback_home: Optional[Path] = None,
-    ef_ratios: str = "0.01,0.05",
+    ef_ratios: str = "0.001,0.01,0.05",
     similarity_enrichment_cutoff: float = 0.01,
     skip_missing: bool = False,
 ):
