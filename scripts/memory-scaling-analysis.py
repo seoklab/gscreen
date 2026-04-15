@@ -326,6 +326,101 @@ def _panel_normalized(ax, df, df_proj, methods, sizes):
     ax.grid(True, which="both", ls=":", alpha=0.4)
 
 
+_RAM_LINESTYLES: dict[int, str] = {
+    64: "-",
+    128: "-.",
+    256: "--",
+    512: ":",
+}
+
+
+def _panel_success_rate(
+    ax,
+    feas: pd.DataFrame,
+    methods: list,
+):
+    """Panel C: success rate vs molecule count for multiple RAM cutoffs."""
+    from matplotlib.lines import Line2D
+
+    for gb, ls in _RAM_LINESTYLES.items():
+        col = f"n_exceed_{gb}gb_128t"
+        if col not in feas.columns:
+            continue
+
+        for m in methods:
+            mf = feas[feas["method"] == m].sort_values("n_mols")
+            if mf.empty:
+                continue
+            obs = mf[mf["source"] == "observed"]
+            proj = mf[mf["source"] == "projected"]
+
+            # Build full x/y series (observed + projected extension)
+            all_x, all_y = [], []
+            if not obs.empty:
+                rate_obs = (obs["n_targets"] - obs[col]) / obs["n_targets"]
+                all_x.extend(obs["n_mols"].tolist())
+                all_y.extend(rate_obs.tolist())
+                ax.plot(
+                    obs["n_mols"],
+                    rate_obs,
+                    color=_COLORS[m],
+                    ls=ls,
+                    marker="o",
+                    markersize=3,
+                )
+
+            if not proj.empty:
+                ext = (
+                    pd.concat([obs.iloc[[-1]], proj])
+                    if not obs.empty
+                    else proj
+                )
+                rate_ext = (ext["n_targets"] - ext[col]) / ext["n_targets"]
+                ax.plot(
+                    ext["n_mols"],
+                    rate_ext,
+                    color=_COLORS[m],
+                    ls=ls,
+                    marker="o",
+                    markersize=2,
+                    alpha=0.5,
+                )
+                # Append only the projected portion (obs tail already in)
+                all_x.extend(proj["n_mols"].tolist())
+                rate_proj = (proj["n_targets"] - proj[col]) / proj["n_targets"]
+                all_y.extend(rate_proj.tolist())
+
+            if all_x:
+                ax.fill_between(
+                    all_x,
+                    -100,
+                    all_y,
+                    color=_COLORS[m],
+                    alpha=0.05,
+                    lw=0,
+                )
+
+    # Legend for RAM thresholds (linestyle)
+    ram_handles = [
+        Line2D([], [], color="grey", ls=ls, label=f"{gb} GB")
+        for gb, ls in _RAM_LINESTYLES.items()
+    ]
+    ax.legend(
+        handles=ram_handles,
+        loc="lower left",
+        fontsize=6,
+        title="Total RAM",
+        title_fontsize=7,
+        bbox_to_anchor=(0.05, 0.0),
+    )
+
+    ax.set_xscale("log")
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_xlabel("Number of molecules")
+    ax.set_ylabel("Estimated success rate (128T)")
+    ax.grid(True, which="both", ls=":", alpha=0.4)
+
+
 # -------------------------------------------------------------------
 # Summary table
 # -------------------------------------------------------------------
@@ -400,11 +495,64 @@ def _compute_summary(df: pd.DataFrame) -> pd.DataFrame:
 # -------------------------------------------------------------------
 
 _RAM_THRESHOLDS_GB = [32, 64, 128, 256, 512]
+_FEASIBILITY_SIZES = [250, 500, 1000, 5000, 10_000]
 
 
-def _compute_feasibility(df: pd.DataFrame) -> pd.DataFrame:
+def _project_at(
+    df: pd.DataFrame,
+    methods: list,
+    sizes: list,
+) -> pd.DataFrame:
+    """Project RSS at specific molecule counts via anchored
+    log-log extrapolation (same model as figure projections).
+    """
+    records = []
+    for (tgt, m), grp in df.groupby(["target", "method"]):
+        if m not in methods:
+            continue
+        grp = grp.sort_values("n_mols")
+        slope, _ = _fit_loglog(
+            grp["n_mols"].values,
+            grp["peak_rss_mb"].values,
+        )
+        if slope is None:
+            continue
+
+        max_obs = grp["n_mols"].max()
+        last_rss = grp.loc[grp["n_mols"] == max_obs, "peak_rss_mb"].iloc[0]
+        log_anchor = np.log10(last_rss)
+        log_n0 = np.log10(max_obs)
+
+        for n in sizes:
+            if n <= max_obs:
+                continue
+            rss = 10 ** (log_anchor + slope * (np.log10(n) - log_n0))
+            records.append(
+                {
+                    "target": tgt,
+                    "method": m,
+                    "n_mols": n,
+                    "peak_rss_mb": rss,
+                }
+            )
+
+    return pd.DataFrame(records)
+
+
+def _compute_feasibility(
+    df_obs: pd.DataFrame,
+    df_proj: pd.DataFrame,
+) -> pd.DataFrame:
+    """Feasibility table from observed + projected data.
+
+    Observed rows include success/failure counts.
+    Projected rows are marked as "projected".
+    Both report 128-thread RAM exceedances.
+    """
     rows = []
-    for (m, n), grp in df.groupby(["method", "n_mols"]):
+
+    # Observed data
+    for (m, n), grp in df_obs.groupby(["method", "n_mols"]):
         n_total = len(grp)
         rss = grp["peak_rss_mb"].values
         imputed = grp["imputed"].values
@@ -413,13 +561,13 @@ def _compute_feasibility(df: pd.DataFrame) -> pd.DataFrame:
 
         row = {
             "method": m,
-            "n_mols": n,
+            "n_mols": int(n),
+            "source": "observed",
             "n_targets": n_total,
             "n_success": n_success,
             "n_missing_or_failed": n_missing,
         }
 
-        # 128-thread projection
         proj = rss * 128
         for gb in _RAM_THRESHOLDS_GB:
             mb = gb * 1024
@@ -427,7 +575,31 @@ def _compute_feasibility(df: pd.DataFrame) -> pd.DataFrame:
 
         rows.append(row)
 
-    return pd.DataFrame(rows)
+    # Projected data
+    if not df_proj.empty:
+        for (m, n), grp in df_proj.groupby(["method", "n_mols"]):
+            rss = grp["peak_rss_mb"].values
+            n_total = len(grp)
+
+            row = {
+                "method": m,
+                "n_mols": int(round(n)),
+                "source": "projected",
+                "n_targets": n_total,
+                "n_success": n_total,
+                "n_missing_or_failed": 0,
+            }
+
+            proj = rss * 128
+            for gb in _RAM_THRESHOLDS_GB:
+                mb = gb * 1024
+                row[f"n_exceed_{gb}gb_128t"] = int(np.sum(proj > mb))
+
+            rows.append(row)
+
+    result = pd.DataFrame(rows)
+    result = result.sort_values(["method", "n_mols"])
+    return result
 
 
 # -------------------------------------------------------------------
@@ -510,12 +682,15 @@ def main(
 
     # --- Projections ---
     df_proj = _project(df1, methods, project_to)
+    feas_proj = _project_at(df1, methods, _FEASIBILITY_SIZES)
+    feas = _compute_feasibility(df1, feas_proj)
 
     # --- Main figure ---
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
     _panel_absolute(axes[0], df1, df_proj, methods, sizes)
     _panel_normalized(axes[1], df1, df_proj, methods, sizes)
-    for ax, letter in zip(axes, "ab"):
+    _panel_success_rate(axes[2], feas, methods[2:])
+    for ax, letter in zip(axes, "abc"):
         ax.annotate(
             letter,
             xy=(-0.13, 0.97),
@@ -546,9 +721,6 @@ def main(
     summary.to_csv(summary_path, index=False)
     typer.echo(f"Saved {summary_path}")
     typer.echo(summary.to_string(index=False))
-
-    # --- Feasibility table ---
-    feas = _compute_feasibility(df1)
     feas_path = output_dir / "memory_scaling_feasibility.csv"
     feas.to_csv(feas_path, index=False)
     typer.echo(f"\nSaved {feas_path}")
