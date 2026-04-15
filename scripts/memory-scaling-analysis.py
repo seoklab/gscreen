@@ -105,6 +105,93 @@ def _agg_quantiles(df: pd.DataFrame):
 
 
 # -------------------------------------------------------------------
+# Projection helpers
+# -------------------------------------------------------------------
+
+
+def _fit_loglog(n_vals, rss_vals):
+    """Fit log10(rss) = slope * log10(n) + intercept."""
+    ok = rss_vals > 0
+    if ok.sum() < 2:
+        return None, None
+    coeffs = np.polyfit(
+        np.log10(n_vals[ok].astype(float)),
+        np.log10(rss_vals[ok]),
+        1,
+    )
+    return coeffs[0], coeffs[1]
+
+
+def _project(df: pd.DataFrame, methods: list, project_to: int) -> pd.DataFrame:
+    """Per-target log-log extrapolation up to project_to.
+
+    Returns a DataFrame with projected rows containing
+    target, method, n_mols, peak_rss_mb.
+    """
+    records = []
+    for (tgt, m), grp in df.groupby(["target", "method"]):
+        if m not in methods:
+            continue
+        grp = grp.sort_values("n_mols")
+        slope, intercept = _fit_loglog(
+            grp["n_mols"].values,
+            grp["peak_rss_mb"].values,
+        )
+        if slope is None:
+            continue
+
+        max_obs = grp["n_mols"].max()
+        if max_obs >= project_to:
+            continue
+
+        # Anchor at last observed value, extrapolate with fitted slope
+        last_rss = grp.loc[grp["n_mols"] == max_obs, "peak_rss_mb"].iloc[0]
+        log_anchor = np.log10(last_rss)
+        log_n0 = np.log10(max_obs)
+
+        proj_ns = np.logspace(log_n0, np.log10(project_to), 8)
+        for n in proj_ns:
+            rss = 10 ** (log_anchor + slope * (np.log10(n) - log_n0))
+            records.append(
+                {
+                    "target": tgt,
+                    "method": m,
+                    "n_mols": n,
+                    "peak_rss_mb": rss,
+                }
+            )
+
+    return pd.DataFrame(records)
+
+
+def _plot_projected_ribbon(
+    ax,
+    df_proj,
+    methods,
+    colors,
+):
+    """Plot projected median + ribbons as dashed lines."""
+    if df_proj.empty:
+        return
+    med, q25, q75, q10, q90 = _agg_quantiles(df_proj)
+    for m in methods:
+        if m not in med.index:
+            continue
+        cols = sorted(med.columns)
+        xs = np.array(cols)
+        ym = med.loc[m, cols].values
+        y25 = q25.loc[m, cols].values
+        y75 = q75.loc[m, cols].values
+        y10 = q10.loc[m, cols].values
+        y90 = q90.loc[m, cols].values
+        c = colors[m]
+
+        ax.fill_between(xs, y10, y90, alpha=0.06, color=c, lw=0)
+        ax.fill_between(xs, y25, y75, alpha=0.15, color=c, lw=0)
+        ax.plot(xs, ym, "--", color=c, lw=1.5, alpha=0.7)
+
+
+# -------------------------------------------------------------------
 # Panel helpers
 # -------------------------------------------------------------------
 
@@ -120,8 +207,8 @@ def _plot_ribbon(ax, sizes, med, q25, q75, q10, q90, method, color):
     y10 = np.array(q10)
     y90 = np.array(q90)
 
-    ax.fill_between(xs, y10, y90, alpha=0.10, color=color)
-    ax.fill_between(xs, y25, y75, alpha=0.25, color=color)
+    ax.fill_between(xs, y10, y90, alpha=0.10, color=color, lw=0)
+    ax.fill_between(xs, y25, y75, alpha=0.25, color=color, lw=0)
     ax.plot(xs, ym, "o-", color=color, label=method, markersize=4)
 
 
@@ -139,7 +226,7 @@ def _add_ram_lines(ax, thresholds_gb):
         )
 
 
-def _panel_absolute(ax, df, methods, sizes):
+def _panel_absolute(ax, df, df_proj, methods, sizes):
     """Panel A: absolute RSS vs molecule count."""
     med, q25, q75, q10, q90 = _agg_quantiles(df)
     for m in methods:
@@ -157,37 +244,42 @@ def _panel_absolute(ax, df, methods, sizes):
             m,
             _COLORS[m],
         )
+    _plot_projected_ribbon(ax, df_proj, methods, _COLORS)
     ax.set_xscale("log")
     ax.set_yscale("log")
-    _add_ram_lines(ax, [1, 4, 16])
+    _add_ram_lines(ax, [2, 8, 32])
     ax.set_xlabel("Number of molecules")
     ax.set_ylabel("Peak Memory Usage (MB)")
     ax.grid(True, which="both", ls=":", alpha=0.4)
 
 
-def _panel_normalized(ax, df, methods, sizes):
-    """Panel B: RSS normalised by smallest-n value per target."""
+def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize RSS by smallest-n value per target/method."""
     records = []
     for (tgt, m), grp in df.groupby(["target", "method"]):
         grp = grp.sort_values("n_mols")
         base = grp["peak_rss_mb"].iloc[0]
+        if base <= 0:
+            continue
         for _, row in grp.iterrows():
             records.append(
                 {
                     "target": tgt,
                     "method": m,
                     "n_mols": row["n_mols"],
-                    "norm_rss": row["peak_rss_mb"] / base,
+                    "peak_rss_mb": row["peak_rss_mb"] / base,
                 }
             )
+    return pd.DataFrame(records)
 
-    ndf = pd.DataFrame(records)
+
+def _panel_normalized(ax, df, df_proj, methods, sizes):
+    """Panel B: RSS normalised by smallest-n value per target."""
+    ndf = _normalize_df(df)
     if ndf.empty:
         return
 
-    med, q25, q75, q10, q90 = _agg_quantiles(
-        ndf.rename(columns={"norm_rss": "peak_rss_mb"})
-    )
+    med, q25, q75, q10, q90 = _agg_quantiles(ndf)
     for m in methods:
         if m not in med.index:
             continue
@@ -203,6 +295,30 @@ def _panel_normalized(ax, df, methods, sizes):
             m,
             _COLORS[m],
         )
+
+    # Projected normalized: join observed base with projections
+    if not df_proj.empty:
+        bases = {}
+        for (tgt, m), grp in df.groupby(["target", "method"]):
+            grp = grp.sort_values("n_mols")
+            b = grp["peak_rss_mb"].iloc[0]
+            if b > 0:
+                bases[(tgt, m)] = b
+        proj_records = []
+        for _, row in df_proj.iterrows():
+            key = (row["target"], row["method"])
+            if key in bases:
+                proj_records.append(
+                    {
+                        "target": row["target"],
+                        "method": row["method"],
+                        "n_mols": row["n_mols"],
+                        "peak_rss_mb": row["peak_rss_mb"] / bases[key],
+                    }
+                )
+        nproj = pd.DataFrame(proj_records)
+        _plot_projected_ribbon(ax, nproj, methods, _COLORS)
+
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("Number of molecules")
@@ -360,12 +476,11 @@ def _plot_parallel(df_all: pd.DataFrame, out: Path):
     fig.legend(
         handles,
         labels,
-        loc="upper center",
+        loc="lower center",
         ncol=len(labels),
         fontsize=8,
-        frameon=False,
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.90])
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
     for ext in ("svg", "pdf"):
         fig.savefig(out.with_suffix(f".{ext}"), dpi=500)
     plt.close(fig)
@@ -380,6 +495,7 @@ def _plot_parallel(df_all: pd.DataFrame, out: Path):
 def main(
     data_dir: Path,
     output_dir: Path = Path("memory_scaling_results"),
+    project_to: int = 10_000,
 ):
     """Analyse memory scaling CSVs produced by the benchmark driver.
 
@@ -397,10 +513,13 @@ def main(
 
     df1 = _fill_missing(df1, methods, sizes)
 
+    # --- Projections ---
+    df_proj = _project(df1, methods, project_to)
+
     # --- Main figure ---
     fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
-    _panel_absolute(axes[0], df1, methods, sizes)
-    _panel_normalized(axes[1], df1, methods, sizes)
+    _panel_absolute(axes[0], df1, df_proj, methods, sizes)
+    _panel_normalized(axes[1], df1, df_proj, methods, sizes)
     for ax, letter in zip(axes, "ab"):
         ax.annotate(
             letter,
@@ -413,12 +532,11 @@ def main(
     fig.legend(
         handles,
         labels,
-        loc="upper center",
+        loc="lower center",
         ncol=len(labels),
         fontsize=8,
-        frameon=False,
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
 
     output_dir.mkdir(parents=True, exist_ok=True)
     main_fig = output_dir / "memory_scaling_main"
