@@ -178,7 +178,7 @@ def _report_relative(df: pd.DataFrame):
     ratio_by_db["all"] = time_by_db["all"] / ref_all
 
     db_headers = "".join(f"{db:>12s}" for db in databases)
-    typer.echo("\nRelative average runtime (GS-SP 1T = 1.0x):")
+    typer.echo("\nRelative average runtime (GS-SP 128T = 1.0x):")
     typer.echo(f"  {'':32s} {db_headers}{'all':>12s}")
     for grp_name, keys, _ in _GROUPS:
         for key in keys:
