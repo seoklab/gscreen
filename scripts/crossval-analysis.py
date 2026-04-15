@@ -18,6 +18,7 @@ import pandas as pd
 import seaborn as sns
 import typer
 from scipy import stats
+from shared_metrics import ecfp4_weight, enrichment_factor
 from sklearn import metrics as skmetrics
 from statsmodels.stats.multitest import multipletests
 
@@ -43,39 +44,6 @@ _TICK_LABELS = {
 # ---------------------------------------------------------------------------
 # Metric helpers (copied from per-set-analysis.py to keep scripts standalone)
 # ---------------------------------------------------------------------------
-
-
-def ecfp4_weight(df: pd.DataFrame) -> np.ndarray:
-    return np.clip(6 * (df["ecfp4"].to_numpy() - 0.1), 0, 0.9)
-
-
-def enrichment_factor(labels, scores, ratio: float = 0.01):
-    labels = np.asarray(labels)
-    scores = np.asarray(scores)
-
-    total_len = len(scores)
-    n_select = max(1, math.ceil(ratio * total_len))
-
-    kth = total_len - n_select
-    threshold = np.partition(scores, kth)[kth]
-
-    above = scores > threshold
-    tied = scores == threshold
-
-    total_actives = labels.sum()
-    if total_actives == 0:
-        return 0.0
-
-    n_above = above.sum()
-    actives_above = labels[above].sum()
-    n_tied = tied.sum()
-    actives_tied = labels[tied].sum()
-
-    n_from_tied = n_select - n_above
-    expected_actives = actives_above + actives_tied * (
-        n_from_tied / n_tied if n_tied > 0 else 0
-    )
-    return (expected_actives / n_select) / (total_actives / total_len)
 
 
 def _compute_metrics(

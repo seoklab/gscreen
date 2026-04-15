@@ -7,7 +7,6 @@ from openbabel import openbabel as ob
 from openbabel import pybel
 from scipy.cluster import hierarchy as hier
 from scipy.spatial.distance import squareform
-
 from shared_metrics import tanimoto_distance_matrix
 
 ob.obErrorLog.StopLogging()
@@ -36,7 +35,7 @@ def read_crystal_pdbid(target_dir: Path) -> str:
         line = line.strip()
         if line.startswith("final:"):
             return line.split()[1].strip()
-    
+
     raise ValueError("No pdb id")
 
 
