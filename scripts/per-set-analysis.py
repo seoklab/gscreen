@@ -5,64 +5,33 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import typer
-from shared_metrics import ecfp4_weight, enrichment_factor
-from sklearn import metrics
+from shared_metrics import (
+    ALL_METHODS,
+    METHOD_SLUG_MAP,
+    compute_metrics,
+    load_gscreen_scores,
+    load_method_scores,
+)
 from typer import Typer
 
 app = Typer(pretty_exceptions_enable=False)
 
-all_methods = [
-    "GS-S",
-    "GS-P",
-    "GS-SP",
-    "Flexi-LS-align",
-    "PharmaGist",
-    "Autodock Vina",
-]
-all_methods_short = [
-    "GS-S",
-    "GS-P",
-    "GS-SP",
-    "LA",
-    "PG",
-    "Vina",
-]
-_method_name_map = {
-    "ls-align": "Flexi-LS-align",
-    "pharmagist": "PharmaGist",
-    "autodock-vina": "Autodock Vina",
-}
 
-
-def summarize_scores(
+def _summarize_scores(
     dfs: dict[str, pd.DataFrame],
     method: str,
     ratios: list[float],
     metric_cols: list[str],
     score_col: str = "score",
     active_col: str = "is_active",
-):
-    summary = {}
+) -> pd.DataFrame:
+    rows = []
     for target, df in sorted(dfs.items(), key=lambda x: x[0]):
-        summary[target] = [
-            metrics.roc_auc_score(df[active_col], df[score_col]),
-            *(
-                enrichment_factor(df[active_col], df[score_col], ratio=ratio)
-                for ratio in ratios
-            ),
-        ]
-
-    summary = pd.DataFrame.from_dict(
-        summary,
-        orient="index",
-        columns=metric_cols,
-    )
-    summary = summary.rename_axis("target").reset_index(drop=False)
-    summary = summary.melt(
-        id_vars=["target"], var_name="metric", value_name="score"
-    )
-    summary.insert(0, "method", method)
-    return summary
+        vals = compute_metrics(df, score_col, active_col, ratios, metric_cols)
+        rows.extend(
+            (method, target, metric, score) for metric, score in vals.items()
+        )
+    return pd.DataFrame(rows, columns=["method", "target", "metric", "score"])
 
 
 def target_average_tani_ratio(
@@ -92,47 +61,6 @@ def target_average_tani_ratio(
     return (expected_ecfp4_sum / n_select) / ecfp4.mean()
 
 
-def _load_gscreen_scores(
-    results: Path,
-    db_home: Path,
-    fallback: Optional[Path] = None,
-):
-    gscreen_scores: dict[str, pd.DataFrame] = {}
-
-    for db_target in db_home.iterdir():
-        if not db_target.is_dir():
-            continue
-
-        target = results / db_target.name
-        score_csv = target / "scores.csv"
-        if not score_csv.is_file() and fallback is not None:
-            typer.echo(
-                f"WARNING: Missing scores for {db_target.name}, trying fallback",
-                err=True,
-            )
-            score_csv = fallback / db_target.name / "scores.csv"
-
-        df = pd.read_csv(score_csv)
-        if "is_active" not in df.columns:
-            df["is_active"] = df["type"] == "active"
-            df = df.drop(columns=["type"])
-            df = df.rename(
-                columns={
-                    "pharma_score": "pharma",
-                    "shape_score": "shape",
-                    "tani_sim": "ecfp4",
-                }
-            )
-
-        weight = ecfp4_weight(df)
-        df["score"] = df["shape"] * weight + df["pharma"] * (1 - weight)
-        df["target"] = db_target.name
-
-        gscreen_scores[db_target.name] = df
-
-    return gscreen_scores
-
-
 def _load_method_scores(
     bench_home: Path,
     method: str,
@@ -141,35 +69,17 @@ def _load_method_scores(
     similarities: pd.DataFrame,
     skip_missing: bool = False,
 ):
-    method_scores = {}
-    for target in bench_home.joinpath(method, "outputs").iterdir():
-        if not target.is_dir():
-            continue
+    raw = load_method_scores(bench_home, method, skip_missing=skip_missing)
 
-        try:
-            df = pd.read_csv(target / "scores.csv", index_col=0)
-        except FileNotFoundError:
-            if skip_missing:
-                typer.echo(
-                    f"WARNING: Missing scores for {target.name} in {method}, skipping",
-                    err=True,
-                )
-                continue
-            raise
-
-        df["id"] = df["id"].astype(str).str.strip()
-        df["target"] = target.name
-        method_scores[target.name] = df
-
-    method_metrics = summarize_scores(
-        method_scores,
-        method=_method_name_map.get(method, method),
+    method_metrics = _summarize_scores(
+        raw,
+        method=METHOD_SLUG_MAP.get(method, method),
         ratios=ratios,
         metric_cols=metric_cols,
     )
 
     method_scores: pd.DataFrame = pd.concat(
-        method_scores.values(),
+        raw.values(),
         ignore_index=True,
     )
     method_scores = method_scores.join(
@@ -185,7 +95,7 @@ def main(
     db_home: Path = Path.home() / "db",
     bench_home: Path = Path.home() / "benchmark",
     fallback_home: Optional[Path] = None,
-    ef_ratios: str = "0.01,0.05",
+    ef_ratios: str = "0.001,0.01,0.05",
     similarity_enrichment_cutoff: float = 0.01,
     skip_missing: bool = False,
 ):
@@ -208,27 +118,27 @@ def main(
     metric_cols = ["aucroc", *[f"ef {ratio * 100:1g}%" for ratio in ratios]]
 
     typer.echo(f"Loading gscreen scores for {db}...")
-    gscreen_scores = _load_gscreen_scores(
+    gscreen_scores = load_gscreen_scores(
         results,
         db_home,
         fallback=fallback_home,
     )
 
-    gss_metrics = summarize_scores(
+    gss_metrics = _summarize_scores(
         gscreen_scores,
         method="GS-S",
         ratios=ratios,
         metric_cols=metric_cols,
         score_col="shape",
     )
-    gsp_metrics = summarize_scores(
+    gsp_metrics = _summarize_scores(
         gscreen_scores,
         method="GS-P",
         ratios=ratios,
         metric_cols=metric_cols,
         score_col="pharma",
     )
-    gssp_metrics = summarize_scores(
+    gssp_metrics = _summarize_scores(
         gscreen_scores,
         method="GS-SP",
         ratios=ratios,
@@ -238,7 +148,6 @@ def main(
     gscreen_scores = pd.concat(gscreen_scores.values(), ignore_index=True)
     gscreen_scores.to_csv(results / "gscreen.csv", index=False)
 
-    gscreen_scores["id"] = gscreen_scores["id"].astype(str).str.strip()
     target_sims = gscreen_scores.set_index(["target", "id"])[["ecfp4"]]
 
     typer.echo(f"Loading other method scores for {db}...")
@@ -290,7 +199,7 @@ def main(
         .reorder_levels([1, 0])
         .loc[
             ["aucroc", *[f"ef {ratio * 100:1g}%" for ratio in ratios]],
-            all_methods,
+            ALL_METHODS,
             :,
         ]
     )

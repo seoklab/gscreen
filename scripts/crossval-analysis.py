@@ -7,7 +7,6 @@ methods, plus a CV-based stability comparison.  Generates publication-ready
 violin plots with significance brackets.
 """
 
-import math
 from itertools import product
 from pathlib import Path
 from typing import Optional
@@ -18,50 +17,19 @@ import pandas as pd
 import seaborn as sns
 import typer
 from scipy import stats
-from shared_metrics import ecfp4_weight, enrichment_factor
-from sklearn import metrics as skmetrics
+from shared_metrics import (
+    ALL_METHODS,
+    BASELINE_METHODS,
+    GSCREEN_METHODS,
+    METHOD_SLUG_MAP,
+    TICK_LABELS,
+    compute_metrics,
+    load_gscreen_scores,
+    load_method_scores,
+)
 from statsmodels.stats.multitest import multipletests
 
 app = typer.Typer(pretty_exceptions_enable=False)
-
-_METHOD_NAME_MAP = {
-    "ls-align": "Flexi-LS-align",
-    "pharmagist": "PharmaGist",
-    "autodock-vina": "Autodock Vina",
-}
-
-GSCREEN_METHODS = ["GS-S", "GS-P", "GS-SP"]
-BASELINE_METHODS = ["Flexi-LS-align", "PharmaGist", "Autodock Vina"]
-ALL_METHODS = GSCREEN_METHODS + BASELINE_METHODS
-
-_TICK_LABELS = {
-    "Flexi-LS-align": "LA",
-    "PharmaGist": "PG",
-    "Autodock Vina": "Vina",
-}
-
-
-# ---------------------------------------------------------------------------
-# Metric helpers (copied from per-set-analysis.py to keep scripts standalone)
-# ---------------------------------------------------------------------------
-
-
-def _compute_metrics(
-    df: pd.DataFrame,
-    score_col: str,
-    active_col: str,
-    ratios: list[float],
-    metric_names: list[str],
-) -> dict[str, float]:
-    return {
-        metric_names[0]: skmetrics.roc_auc_score(
-            df[active_col], df[score_col]
-        ),
-        **{
-            name: enrichment_factor(df[active_col], df[score_col], ratio=r)
-            for name, r in zip(metric_names[1:], ratios)
-        },
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -85,46 +53,13 @@ def _parse_target_pdbid(dirname: str) -> tuple[str, str]:
 
 
 def _load_gscreen_scores(
-    results: Path,
-    db_home: Path,
-    skip_missing: bool = False,
+    results: Path, db_home: Path
 ) -> dict[str, pd.DataFrame]:
-    scores: dict[str, pd.DataFrame] = {}
-
-    for db_target in sorted(db_home.iterdir()):
-        if not db_target.is_dir():
-            continue
-
-        key = db_target.name
-        score_csv = results / key / "scores.csv"
-        if not score_csv.is_file():
-            if skip_missing:
-                typer.echo(
-                    f"WARNING: Missing gscreen scores for {key}", err=True
-                )
-                continue
-            raise FileNotFoundError(score_csv)
-
-        df = pd.read_csv(score_csv)
-        if "is_active" not in df.columns:
-            df["is_active"] = df["type"] == "active"
-            df = df.drop(columns=["type"])
-            df = df.rename(
-                columns={
-                    "pharma_score": "pharma",
-                    "shape_score": "shape",
-                    "tani_sim": "ecfp4",
-                }
-            )
-
-        weight = ecfp4_weight(df)
-        df["score"] = df["shape"] * weight + df["pharma"] * (1 - weight)
-
+    scores = load_gscreen_scores(results, db_home)
+    for key, df in scores.items():
         target, pdbid = _parse_target_pdbid(key)
         df["target"] = target
         df["pdbid"] = pdbid
-        scores[key] = df
-
     return scores
 
 
@@ -133,36 +68,11 @@ def _load_method_scores(
     method: str,
     skip_missing: bool = False,
 ) -> dict[str, pd.DataFrame]:
-    scores: dict[str, pd.DataFrame] = {}
-    outputs = bench_home / method / "outputs"
-    if not outputs.is_dir():
-        if skip_missing:
-            typer.echo(f"WARNING: No outputs directory for {method}", err=True)
-            return scores
-        raise FileNotFoundError(outputs)
-
-    for target_dir in sorted(outputs.iterdir()):
-        if not target_dir.is_dir():
-            continue
-
-        key = target_dir.name
-        try:
-            df = pd.read_csv(target_dir / "scores.csv", index_col=0)
-        except FileNotFoundError:
-            if skip_missing:
-                typer.echo(
-                    f"WARNING: Missing scores for {key} in {method}",
-                    err=True,
-                )
-                continue
-            raise
-
-        df["id"] = df["id"].astype(str).str.strip()
+    scores = load_method_scores(bench_home, method, skip_missing=skip_missing)
+    for key, df in scores.items():
         target, pdbid = _parse_target_pdbid(key)
         df["target"] = target
         df["pdbid"] = pdbid
-        scores[key] = df
-
     return scores
 
 
@@ -189,7 +99,7 @@ def _collect_all_metrics(
     for key, df in gscreen_scores.items():
         target, pdbid = _parse_target_pdbid(key)
         for method_name, score_col in gscreen_submethods.items():
-            vals = _compute_metrics(
+            vals = compute_metrics(
                 df, score_col, "is_active", ratios, metric_names
             )
             for metric, score in vals.items():
@@ -204,10 +114,10 @@ def _collect_all_metrics(
                 )
 
     for method_slug, method_scores in external_methods.items():
-        method_name = _METHOD_NAME_MAP.get(method_slug, method_slug)
+        method_name = METHOD_SLUG_MAP.get(method_slug, method_slug)
         for key, df in method_scores.items():
             target, pdbid = _parse_target_pdbid(key)
-            vals = _compute_metrics(
+            vals = compute_metrics(
                 df, "score", "is_active", ratios, metric_names
             )
             for metric, score in vals.items():
@@ -600,7 +510,7 @@ def _draw_boxplot(
     _shift_boxes(ax, old_x, new_x)
 
     ax.set_xticks(new_x)
-    ax.set_xticklabels([_TICK_LABELS.get(m, m) for m in ALL_METHODS])
+    ax.set_xticklabels([TICK_LABELS.get(m, m) for m in ALL_METHODS])
     ax.set_xlim(new_x[0] - 0.5, new_x[-1] + 0.5)
     ax.set_xlabel("")
     ax.set_ylabel("AUROC" if metric == "aucroc" else metric.upper())
@@ -715,14 +625,14 @@ def main(
     metric_names = ["aucroc", "ef 1%"]
 
     typer.echo(f"Loading gscreen scores for {db} ...")
-    gscreen_scores = _load_gscreen_scores(results, db_home, skip_missing)
+    gscreen_scores = _load_gscreen_scores(results, db_home)
     typer.echo(f"  {len(gscreen_scores)} entries loaded")
 
     typer.echo(f"Loading external method scores for {db} ...")
     ext_methods: dict[str, dict[str, pd.DataFrame]] = {}
     for slug in ("ls-align", "pharmagist", "autodock-vina"):
         ext_methods[slug] = _load_method_scores(bench_home, slug, skip_missing)
-        name = _METHOD_NAME_MAP.get(slug, slug)
+        name = METHOD_SLUG_MAP.get(slug, slug)
         typer.echo(f"  {name}: {len(ext_methods[slug])} entries")
 
     # ------------------------------------------------------------------
