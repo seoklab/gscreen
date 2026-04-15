@@ -277,7 +277,7 @@ def main(
             name = _METHOD_SLUG.get(slug, slug)
             typer.echo(f"  {name}: {len(externals[slug])} targets")
 
-        db_label = db.upper().replace("-", "-")
+        db_label = db.upper()
         typer.echo("Computing ROC curves ...")
         all_rocs.update(_collect_rocs(gscreen, externals, db_label))
 
