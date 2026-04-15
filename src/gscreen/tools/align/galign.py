@@ -19,6 +19,10 @@ class GAlign(ParallelModule):
 
     def run(self, query: Path, result: Path, force: bool):
         tmp_out = result.with_name(f"{result.stem}_all{result.suffix}")
+        if query.stat().st_size == 0:
+            result.touch()
+            return
+
         with result.with_name("galign.log").open("wb", buffering=0) as flog:
             sp.run(
                 [
