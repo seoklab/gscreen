@@ -11,6 +11,29 @@ readme = "README.md"
 requires-python = ">=3.9"
 authors = [{ name = "Nuri Jung", email = "jnooree@snu.ac.kr" }]
 dynamic = ["version"]
+dependencies = [
+    "debugpy>=1.8.20",
+    "file-read-backwards~=3.1.0",
+    "joblib>=1.4.2",
+    "networkx~=3.2.1",
+    "numpy<2.0",
+    "openbabel-wheel~=3.1.1",
+    "pandas~=2.2.3",
+    "scikit-learn~=1.6.0",
+    "scipy~=1.13.1",
+    "tqdm>=4.67",
+    "typer>=0.16",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.31.0",
+    "matplotlib>=3.9.4",
+    "mypy>=1.19.1",
+    "ruff>=0.15.10",
+    "seaborn>=0.13.2",
+    "statsmodels~=0.14.4",
+]
 
 [project.urls]
 repository = "https://github.com/seoklab/gscreen"
@@ -20,6 +43,12 @@ ganal = "gscreen.cli.ganal:main"
 gscreen = "gscreen.cli.gscreen:main"
 gundock = "gscreen.cli.gundock:main"
 gmolsplit = "gscreen.cli.utils:split_into"
+
+[tool.uv]
+environments = ["sys_platform == 'linux'"]
+constraint-dependencies = [
+    "pygls<2.0", # vscode requires pygls<2.0
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
