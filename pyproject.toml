@@ -28,11 +28,14 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ipykernel>=6.31.0",
+    "joblib-stubs>=1.4.2.5.20240918",
     "matplotlib>=3.9.4",
     "mypy>=1.19.1",
     "ruff>=0.15.10",
+    "scikit-learn-stubs>=0.0.3",
     "seaborn>=0.13.2",
     "statsmodels~=0.14.4",
+    "types-tqdm>=4.67.3.20260205",
 ]
 
 [project.urls]
