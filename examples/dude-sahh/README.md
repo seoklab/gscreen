@@ -51,7 +51,3 @@ $$w =
 
 $\textrm{Tanimoto}$ is the ECFP4 Tanimoto similarity between the query ligand
 and the reference ligand (annotated as `tani_sim` in the `scores.csv` file).
-
-## Notes
-
-Result is based on commit [c037800](https://github.com/seoklab/gscreen/tree/c037800).
