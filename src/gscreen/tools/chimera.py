@@ -107,10 +107,7 @@ if exclude:
 
         self.script.append("models = openModels.list()")
         self.script.append(
-            (
-                f"write({model_arg}, {ref_arg}, {str(fpath)!r}, "
-                f"format={fmt!r})"
-            )
+            (f"write({model_arg}, {ref_arg}, {str(fpath)!r}, format={fmt!r})")
         )
 
     def run(self, verbose: bool = False, keep: bool = True):

@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import pandas as pd
-from shared_metrics import ecfp4_weight
 from typer import Typer
+
+from shared_metrics import ecfp4_weight
 
 app = Typer(pretty_exceptions_enable=False)
 

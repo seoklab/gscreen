@@ -4,15 +4,20 @@ A Scalable Receptor-Aware Virtual Screening through Flexible Ligand Alignment.
 
 ## Installation
 
-G-screen runs in a conda environment, with G-align as an extra dependency that
-need to be installed separately.
+G-screen runs in a virtual environment, and works with Python 3.10+. We
+recommend using uv to manage the virtual environment. G-screen works with
+G-align as an extra dependency that need to be installed separately; see below
+for details.
 
-### Conda environment
+### Python environment
 
-`mamba env create -f environment.yml`
+This will create a virtual environment in `.venv` directory at the project root,
+and install the required dependencies. G-screen will be installed during this
+process (in editable mode).
 
-This will create a conda environment named `gscreen` with all the dependencies
-except G-align.
+```bash
+uv sync [--no-dev]
+```
 
 ### G-align
 
@@ -29,14 +34,6 @@ sudo apt-get install libomp5
 
 G-align must be available in `$PATH` environment variable for G-screen to
 work.
-
-### G-screen installation
-
-Install with pip after the conda environment is activated at the project root.
-
-```bash
-pip install -U .
-```
 
 ## Examples
 

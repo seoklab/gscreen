@@ -163,12 +163,12 @@ def _report_relative(df: pd.DataFrame):
     databases = sorted(df["db"].unique())
 
     # --- Time ---
-    ref_means = df.loc[df["key"] == _REFERENCE_KEY].groupby("db")["time"].mean()
+    ref_means = (
+        df.loc[df["key"] == _REFERENCE_KEY].groupby("db")["time"].mean()
+    )
     ref_all = df.loc[df["key"] == _REFERENCE_KEY, "time"].mean()
 
-    time_by_db = (
-        df.groupby(["db", "key"])["time"].mean().unstack(level="db")
-    )
+    time_by_db = df.groupby(["db", "key"])["time"].mean().unstack(level="db")
     time_by_db = time_by_db.loc[key_order]
     time_by_db["all"] = df.groupby("key")["time"].mean().loc[key_order]
 
@@ -185,16 +185,13 @@ def _report_relative(df: pd.DataFrame):
             nproc = int(key.rsplit("-", 1)[1])
             label = _fmt_method(grp_name, nproc)
             vals = "".join(
-                f"{_sig2(ratio_by_db.loc[key, db]):>11s}x"
-                for db in databases
+                f"{_sig2(ratio_by_db.loc[key, db]):>11s}x" for db in databases
             )
             vals += f"{_sig2(ratio_by_db.loc[key, 'all']):>11s}x"
             typer.echo(f"  {label} {vals}")
 
     # --- Memory ---
-    mem_by_db = (
-        df.groupby(["db", "key"])["memkb"].max().unstack(level="db")
-    )
+    mem_by_db = df.groupby(["db", "key"])["memkb"].max().unstack(level="db")
     mem_by_db = mem_by_db.loc[key_order]
     mem_by_db["all"] = df.groupby("key")["memkb"].max().loc[key_order]
 

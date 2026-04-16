@@ -17,6 +17,8 @@ import pandas as pd
 import seaborn as sns
 import typer
 from scipy import stats
+from statsmodels.stats.multitest import multipletests
+
 from shared_metrics import (
     ALL_METHODS,
     BASELINE_METHODS,
@@ -27,7 +29,6 @@ from shared_metrics import (
     load_gscreen_scores,
     load_method_scores,
 )
-from statsmodels.stats.multitest import multipletests
 
 app = typer.Typer(pretty_exceptions_enable=False)
 

@@ -1,5 +1,7 @@
+.vscode/
 /test/
 /benchmark/
+/tmp/
 /logs/
 /src/gscreen/_version.py
 
