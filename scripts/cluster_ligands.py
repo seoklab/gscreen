@@ -7,6 +7,7 @@ from openbabel import openbabel as ob
 from openbabel import pybel
 from scipy.cluster import hierarchy as hier
 from scipy.spatial.distance import squareform
+
 from shared_metrics import tanimoto_distance_matrix
 
 ob.obErrorLog.StopLogging()

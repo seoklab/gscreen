@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import typer
+from typer import Typer
+
 from shared_metrics import (
     ALL_METHODS,
     GSCREEN_METHODS,
@@ -13,7 +15,6 @@ from shared_metrics import (
     load_gscreen_scores,
     load_method_scores,
 )
-from typer import Typer
 
 app = Typer(pretty_exceptions_enable=False)
 

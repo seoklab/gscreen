@@ -11,13 +11,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import typer
+from sklearn import metrics as skmetrics
+
 from shared_metrics import (
     ALL_METHODS,
     METHOD_SLUG_MAP,
     load_gscreen_scores,
     load_method_scores,
 )
-from sklearn import metrics as skmetrics
 
 app = typer.Typer(pretty_exceptions_enable=False)
 
