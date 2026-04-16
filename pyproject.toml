@@ -30,15 +30,15 @@ version_file = "src/gscreen/_version.py"
 [tool.ruff]
 line-length = 79
 
-target-version = "py39"
-
-src = ["src"]
+src = ["src", "scripts"]
 extend-include = ["*.pyi", "*.ipynb"]
 extend-exclude = [".github", ".vscode", "build", "dist", "*.pyc"]
+
+[tool.ruff.lint]
 extend-select = ["I"]
 ignore = ["E4", "E74", "F403", "F405"]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 
 [tool.ruff.lint.isort]
