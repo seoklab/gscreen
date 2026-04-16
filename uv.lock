@@ -300,7 +300,6 @@ wheels = [
 name = "gscreen"
 source = { editable = "." }
 dependencies = [
-    { name = "debugpy", marker = "sys_platform == 'linux'" },
     { name = "file-read-backwards", marker = "sys_platform == 'linux'" },
     { name = "joblib", marker = "sys_platform == 'linux'" },
     { name = "networkx", marker = "sys_platform == 'linux'" },
@@ -315,6 +314,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "debugpy", marker = "sys_platform == 'linux'" },
     { name = "ipykernel", marker = "sys_platform == 'linux'" },
     { name = "joblib-stubs", version = "1.5.2.0.20250831", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' and sys_platform == 'linux'" },
     { name = "joblib-stubs", version = "1.5.3.1.20260117", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and sys_platform == 'linux'" },
@@ -335,7 +335,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "debugpy", specifier = ">=1.8.20" },
     { name = "file-read-backwards", specifier = "~=3.1.0" },
     { name = "joblib", specifier = ">=1.4.2" },
     { name = "networkx", specifier = "~=3.2.1" },
@@ -350,6 +349,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "debugpy", specifier = ">=1.8.20" },
     { name = "ipykernel", specifier = ">=6.31.0" },
     { name = "joblib-stubs", specifier = ">=1.4.2.5.20240918" },
     { name = "matplotlib", specifier = ">=3.9.4" },
