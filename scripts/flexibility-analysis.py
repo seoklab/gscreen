@@ -296,7 +296,7 @@ def _plot_correlation(per_target: pd.DataFrame, out: Path):
 
             ax.set_xlabel(_FLEX_COLS[fc], fontsize=8)
             if ci == 0:
-                label = "AUROC" if pm == "aucroc" else pm.upper()
+                label = _PERF_METRICS[pm] 
                 ax.set_ylabel(label, fontsize=8)
             else:
                 ax.set_ylabel("")
