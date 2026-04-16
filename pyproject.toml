@@ -136,7 +136,6 @@ reportInvalidStubStatement = "warning"
 reportIncompleteStub = "warning"
 reportUnnecessaryTypeIgnoreComment = "none"
 reportMatchNotExhaustive = "warning"
-reportShadowedImports = "warning"
 reportPossiblyUnboundVariable = "none"
 
 # Covered by mypy
