@@ -7,6 +7,7 @@ import seaborn as sns
 import typer
 from shared_metrics import (
     ALL_METHODS,
+    GSCREEN_METHODS,
     METHOD_SLUG_MAP,
     compute_metrics,
     load_gscreen_scores,
@@ -98,6 +99,7 @@ def main(
     ef_ratios: str = "0.001,0.01,0.05",
     similarity_enrichment_cutoff: float = 0.01,
     skip_missing: bool = False,
+    only_gscreen: bool = False,
 ):
     sns.set_theme(
         style="whitegrid",
@@ -150,43 +152,50 @@ def main(
 
     target_sims = gscreen_scores.set_index(["target", "id"])[["ecfp4"]]
 
-    typer.echo(f"Loading other method scores for {db}...")
-    ls_scores, ls_metrics = _load_method_scores(
-        bench_home,
-        "ls-align",
-        ratios,
-        metric_cols,
-        target_sims,
-        skip_missing=skip_missing,
-    )
-    pg_scores, pg_metrics = _load_method_scores(
-        bench_home,
-        "pharmagist",
-        ratios,
-        metric_cols,
-        target_sims,
-        skip_missing=skip_missing,
-    )
-    vina_scores, vina_metrics = _load_method_scores(
-        bench_home,
-        "autodock-vina",
-        ratios,
-        metric_cols,
-        target_sims,
-        skip_missing=skip_missing,
-    )
+    if only_gscreen:
+        all_metrics = pd.concat(
+            [gss_metrics, gsp_metrics, gssp_metrics],
+            ignore_index=True,
+        )
+    else:
+        typer.echo(f"Loading other method scores for {db}...")
+        ls_scores, ls_metrics = _load_method_scores(
+            bench_home,
+            "ls-align",
+            ratios,
+            metric_cols,
+            target_sims,
+            skip_missing=skip_missing,
+        )
+        pg_scores, pg_metrics = _load_method_scores(
+            bench_home,
+            "pharmagist",
+            ratios,
+            metric_cols,
+            target_sims,
+            skip_missing=skip_missing,
+        )
+        vina_scores, vina_metrics = _load_method_scores(
+            bench_home,
+            "autodock-vina",
+            ratios,
+            metric_cols,
+            target_sims,
+            skip_missing=skip_missing,
+        )
 
-    all_metrics = pd.concat(
-        [
-            gss_metrics,
-            gsp_metrics,
-            gssp_metrics,
-            ls_metrics,
-            pg_metrics,
-            vina_metrics,
-        ],
-        ignore_index=True,
-    )
+        all_metrics = pd.concat(
+            [
+                gss_metrics,
+                gsp_metrics,
+                gssp_metrics,
+                ls_metrics,
+                pg_metrics,
+                vina_metrics,
+            ],
+            ignore_index=True,
+        )
+
     all_metrics.to_csv(results / "scores.csv", index=False)
 
     typer.echo("Summary:")
@@ -199,7 +208,7 @@ def main(
         .reorder_levels([1, 0])
         .loc[
             ["aucroc", *[f"ef {ratio * 100:1g}%" for ratio in ratios]],
-            ALL_METHODS,
+            (GSCREEN_METHODS if only_gscreen else ALL_METHODS),
             :,
         ]
     )
@@ -247,44 +256,45 @@ def main(
             )
         )
 
-    for target in ls_scores["target"].unique():
-        averages.append(
-            (
-                "LA",
-                target,
-                target_average_tani_ratio(
-                    ls_scores,
+    if not only_gscreen:
+        for target in ls_scores["target"].unique():
+            averages.append(
+                (
+                    "LA",
                     target,
-                    target_cutoff[target],
-                ),
+                    target_average_tani_ratio(
+                        ls_scores,
+                        target,
+                        target_cutoff[target],
+                    ),
+                )
             )
-        )
 
-    for target in pg_scores["target"].unique():
-        averages.append(
-            (
-                "PG",
-                target,
-                target_average_tani_ratio(
-                    pg_scores,
+        for target in pg_scores["target"].unique():
+            averages.append(
+                (
+                    "PG",
                     target,
-                    target_cutoff[target],
-                ),
+                    target_average_tani_ratio(
+                        pg_scores,
+                        target,
+                        target_cutoff[target],
+                    ),
+                )
             )
-        )
 
-    for target in vina_scores["target"].unique():
-        averages.append(
-            (
-                "Vina",
-                target,
-                target_average_tani_ratio(
-                    vina_scores,
+        for target in vina_scores["target"].unique():
+            averages.append(
+                (
+                    "Vina",
                     target,
-                    target_cutoff[target],
-                ),
+                    target_average_tani_ratio(
+                        vina_scores,
+                        target,
+                        target_cutoff[target],
+                    ),
+                )
             )
-        )
 
     averages = pd.DataFrame(averages, columns=["method", "target", "ratio"])
     averages.to_csv(results / "enrichment.csv", index=False)
