@@ -453,10 +453,10 @@ def _plot_gscreen_analysis(bench_home: Path, out_dir: Path):
 
 @app.command()
 def main(
-    bench_home: Path = Path.home() / "repo/seoklab/gscreen-data/benchmark",
+    bench_home: Path,
     out_dir: Path = Path("inter-dataset-analysis"),
-    plot_enrichment: bool = False,
-    plot_dataset_analysis: bool = False,
+    plot_enrichment: bool = True,
+    plot_dataset_analysis: bool = True,
     plot_gscreen_analysis: bool = True,
 ):
     sns.set_theme(
