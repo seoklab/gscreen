@@ -16,20 +16,12 @@ from sklearn import metrics as skmetrics
 from shared_metrics import (
     ALL_METHODS,
     METHOD_SLUG_MAP,
+    METHOD_STYLES,
     load_gscreen_scores,
     load_method_scores,
 )
 
 app = typer.Typer(pretty_exceptions_enable=False)
-
-_METHOD_STYLES: dict[str, dict] = {
-    "GS-S": dict(color="#0072B2", linestyle="-", linewidth=1.2),
-    "GS-P": dict(color="#D55E00", linestyle="-", linewidth=1.2),
-    "GS-SP": dict(color="#009E73", linestyle="-", linewidth=1.6),
-    "Flexi-LS-align": dict(color="#CC79A7", linestyle="--", linewidth=1.0),
-    "PharmaGist": dict(color="#F0E442", linestyle="--", linewidth=1.0),
-    "Autodock Vina": dict(color="#56B4E9", linestyle=":", linewidth=1.0),
-}
 
 NCOLS = 4
 NROWS = 6
@@ -102,7 +94,7 @@ def _draw_roc_panel(
         if method not in rocs:
             continue
         fpr, tpr = rocs[method]
-        style = _METHOD_STYLES[method]
+        style = METHOD_STYLES[method]
         ax.plot(fpr, tpr, **style)
 
     ax.set_xlim(-0.02, 1.02)
@@ -115,7 +107,7 @@ def _draw_roc_panel(
 def _make_legend_handles():
     handles = []
     for method in ALL_METHODS:
-        style = _METHOD_STYLES[method]
+        style = METHOD_STYLES[method]
         (h,) = plt.plot([], [], label=method, **style)
         handles.append(h)
     return handles

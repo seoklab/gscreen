@@ -11,25 +11,38 @@ from sklearn import metrics as skmetrics
 _logger = logging.getLogger(__name__)
 
 GSCREEN_METHODS = ["GS-S", "GS-P", "GS-SP"]
-BASELINE_METHODS = ["Flexi-LS-align", "PharmaGist", "Autodock Vina"]
+BASELINE_METHODS = ["Flexi-LS-align", "PharmaGist", "AutoDock Vina"]
 ALL_METHODS = GSCREEN_METHODS + BASELINE_METHODS
 
 METHOD_SLUG_MAP = {
     "ls-align": "Flexi-LS-align",
     "pharmagist": "PharmaGist",
-    "autodock-vina": "Autodock Vina",
+    "autodock-vina": "AutoDock Vina",
 }
 
 TICK_LABELS = {
     "Flexi-LS-align": "LA",
     "PharmaGist": "PG",
-    "Autodock Vina": "Vina",
+    "AutoDock Vina": "Vina",
 }
 
 DATASET_STYLES = {
     "DUD-E": {"marker": "o", "color": "#4c72b0"},
     "LIT-PCBA": {"marker": "s", "color": "#dd8452"},
     "MUV": {"marker": "D", "color": "#55a868"},
+}
+
+METHOD_STYLES = {
+    "GS-S": {"color": "#0072B2", "linestyle": "-", "linewidth": 1.2},
+    "GS-P": {"color": "#D55E00", "linestyle": "-", "linewidth": 1.2},
+    "GS-SP": {"color": "#009E73", "linestyle": "-", "linewidth": 1.6},
+    "Flexi-LS-align": {
+        "color": "#CC79A7",
+        "linestyle": "--",
+        "linewidth": 1.0,
+    },
+    "PharmaGist": {"color": "#F0E442", "linestyle": "--", "linewidth": 1.0},
+    "AutoDock Vina": {"color": "#56B4E9", "linestyle": ":", "linewidth": 1.0},
 }
 
 
@@ -52,7 +65,12 @@ def ecfp4_weight(df: pd.DataFrame):
     return np.clip(6 * (ecfp4 - 0.1), 0, 0.9)
 
 
-def enrichment_factor(labels, scores, ratio: float = 0.01):
+def enrichment_factor(
+    labels,
+    scores,
+    ratio: float = 0.01,
+    strict_mode: bool = False,
+) -> float:
     labels = np.asarray(labels)
     scores = np.asarray(scores)
 
@@ -75,6 +93,8 @@ def enrichment_factor(labels, scores, ratio: float = 0.01):
 
     n_from_tied = n_select - n_above
     expected_actives = actives_above + actives_tied * (n_from_tied / n_tied)
+    if strict_mode:
+        n_select = n_above + n_tied
     return (expected_actives / n_select) / (total_actives / total_len)
 
 
