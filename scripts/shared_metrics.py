@@ -26,6 +26,12 @@ TICK_LABELS = {
     "Autodock Vina": "Vina",
 }
 
+DATASET_STYLES = {
+    "DUD-E": {"marker": "o", "color": "#4c72b0"},
+    "LIT-PCBA": {"marker": "s", "color": "#dd8452"},
+    "MUV": {"marker": "D", "color": "#55a868"},
+}
+
 
 def tanimoto_distance_matrix(fps: list[pybel.Fingerprint]):
     """Compute condensed pairwise Tanimoto distance matrix."""

@@ -9,13 +9,9 @@ from matplotlib import pyplot as plt
 from scipy import stats
 from typer import Typer
 
-app = Typer(pretty_exceptions_enable=False)
+from shared_metrics import DATASET_STYLES
 
-_DATASET_STYLE: dict[str, dict] = {
-    "DUD-E": {"marker": "o", "color": "#4c72b0"},
-    "LIT-PCBA": {"marker": "s", "color": "#dd8452"},
-    "MUV": {"marker": "D", "color": "#55a868"},
-}
+app = Typer(pretty_exceptions_enable=False)
 
 
 def _plot_enrichment_diagram(bench_home: Path, out_dir: Path):
@@ -108,7 +104,7 @@ def _plot_enrichment_diagram(bench_home: Path, out_dir: Path):
     line = np.linspace(lo, hi, 100)
     ax.plot(line, line, color="gray", linestyle="--", lw=0.8, label="$y = x$")
 
-    for ds, sty in _DATASET_STYLE.items():
+    for ds, sty in DATASET_STYLES.items():
         mask = data["dataset"] == ds
         if not mask.any():
             continue
@@ -285,7 +281,7 @@ def _plot_gscreen_analysis(bench_home: Path, out_dir: Path):
     )
     ax.axhline(1.0, ls="--", color="#999999", lw=0.7, zorder=1)
 
-    for ds, sty in _DATASET_STYLE.items():
+    for ds, sty in DATASET_STYLES.items():
         mask = plot_data["dataset"] == ds
         if not mask.any():
             continue
@@ -376,7 +372,7 @@ def _plot_gscreen_analysis(bench_home: Path, out_dir: Path):
     ax.axvline(rand_x, ls="--", color="#999999", lw=0.7, zorder=1)
     ax.axhline(rand_y, ls="--", color="#999999", lw=0.7, zorder=1)
 
-    for ds, sty in _DATASET_STYLE.items():
+    for ds, sty in DATASET_STYLES.items():
         mask = plot_data["dataset"] == ds
         if not mask.any():
             continue

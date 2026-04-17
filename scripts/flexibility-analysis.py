@@ -10,7 +10,7 @@ import typer
 from scipy.stats import spearmanr
 from sklearn.metrics import roc_auc_score
 
-from shared_metrics import enrichment_factor
+from shared_metrics import DATASET_STYLES, enrichment_factor
 
 app = typer.Typer(pretty_exceptions_enable=False)
 
@@ -24,11 +24,6 @@ _FLEX_COLS = {
     "rot_per_heavyatom": "# Rotatable bonds / # Heavy atom",
 }
 _PERF_METRICS = {"aucroc": "AUROC", "ef 1%": "EF1%"}
-_DATASET_STYLE: dict[str, dict] = {
-    "DUD-E": {"marker": "o", "color": "#4c72b0"},
-    "LIT-PCBA": {"marker": "s", "color": "#dd8452"},
-    "MUV": {"marker": "D", "color": "#55a868"},
-}
 
 
 # -------------------------------------------------------------------
@@ -240,7 +235,7 @@ def _plot_correlation(per_target: pd.DataFrame, out: Path):
             x_range = mdf[fc].max() - mdf[fc].min()
             jitter_scale = x_range * 0.015
 
-            for ds, sty in _DATASET_STYLE.items():
+            for ds, sty in DATASET_STYLES.items():
                 mask = mdf["dataset"] == ds
                 if not mask.any():
                     continue
@@ -379,7 +374,7 @@ def _plot_stratified(strat: pd.DataFrame, bin_edges: np.ndarray, out: Path):
                         line.set_linewidth(0.8)
 
                 # Jittered overlay by dataset
-                for ds, sty in _DATASET_STYLE.items():
+                for ds, sty in DATASET_STYLES.items():
                     ds_mask = sub["dataset"] == ds
                     if not ds_mask.any():
                         continue
