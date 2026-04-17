@@ -49,14 +49,72 @@ def _plot_enrichment_diagram(bench_home: Path, out_dir: Path):
         data = sp.join(pg).reset_index()
         data.to_parquet(cache)
 
+    lo, hi, rand = 0.5, 10.0, 1.0
+
     fig, ax = plt.subplots(figsize=(6, 6))
+
+    # Both worse than random
+    ax.fill_between(
+        [lo, rand],
+        lo,
+        rand,
+        color="#cccccc",
+        alpha=0.5,
+        lw=0,
+        zorder=0,
+    )
+    # Only PharmaGist worse than random (left strip)
+    ax.fill_between(
+        [lo, rand],
+        rand,
+        hi,
+        color="#cccccc",
+        alpha=0.2,
+        lw=0,
+        zorder=0,
+    )
+    # Only GS-SP worse than random (bottom strip)
+    ax.fill_between(
+        [rand, hi],
+        lo,
+        rand,
+        color="#cccccc",
+        alpha=0.2,
+        lw=0,
+        zorder=0,
+    )
+    ax.axvline(rand, ls="--", color="#999999", lw=0.7, zorder=1)
+    ax.axhline(rand, ls="--", color="#999999", lw=0.7, zorder=1)
+
+    # Winner shading: above diagonal = GS-SP wins
+    ax.fill_between(
+        [lo, hi],
+        [lo, hi],
+        hi,
+        color="#4c72b0",
+        alpha=0.05,
+        lw=0,
+    )
+    # Below diagonal = PharmaGist wins
+    ax.fill_between(
+        [lo, hi],
+        lo,
+        [lo, hi],
+        color="#dd8452",
+        alpha=0.05,
+        lw=0,
+    )
+
+    line = np.linspace(lo, hi, 100)
+    ax.plot(line, line, color="gray", linestyle="--", lw=0.8, label="$y = x$")
+
     for ds, sty in _DATASET_STYLE.items():
         mask = data["dataset"] == ds
         if not mask.any():
             continue
         ax.scatter(
-            data.loc[mask, "GS-SP"],
             data.loc[mask, "pharma"],
+            data.loc[mask, "GS-SP"],
             marker=sty["marker"],
             color=sty["color"],
             edgecolors="white",
@@ -66,21 +124,18 @@ def _plot_enrichment_diagram(bench_home: Path, out_dir: Path):
         )
 
     ax.set_xscale("log")
-    ax.set_xlim(0.5, 10.0)
+    ax.set_xlim(lo, hi)
     ax.set_xticks([0.5, 1.0, 10.0])
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.1f}x"))
     ax.set_yscale("log")
-    ax.set_ylim(0.5, 10.0)
+    ax.set_ylim(lo, hi)
     ax.set_yticks([0.5, 1.0, 10.0])
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.1f}x"))
-
-    line = np.linspace(0.5, 10.0, 100)
-    ax.plot(line, line, color="gray", linestyle="--", label="$y = x$")
     ax.legend(loc="lower right")
 
     ax.set(
-        xlabel="GS-SP Similarity Enrichment (Top 1%)",
-        ylabel="PharmaGist Similarity Enrichment (Top 1%)",
+        xlabel="PharmaGist Similarity Enrichment (Top 1%)",
+        ylabel="GS-SP Similarity Enrichment (Top 1%)",
     )
 
     for ext in ("svg", "pdf"):
@@ -213,9 +268,23 @@ def _plot_gscreen_analysis(bench_home: Path, out_dir: Path):
         gridspec_kw={"wspace": 0.2},
         figsize=(11.23625, 5),
     )
+    key_label = "Baseline-normalized Active Alignment"
 
     # Panel a
     ax = axes[0]
+    x_lo, x_hi = 0, 0.5
+    y_lo_a, y_hi_a = 0.8, 1.6
+    ax.fill_between(
+        [x_lo, x_hi],
+        y_lo_a,
+        1.0,
+        color="#cccccc",
+        alpha=0.3,
+        lw=0,
+        zorder=0,
+    )
+    ax.axhline(1.0, ls="--", color="#999999", lw=0.7, zorder=1)
+
     for ds, sty in _DATASET_STYLE.items():
         mask = plot_data["dataset"] == ds
         if not mask.any():
@@ -238,9 +307,9 @@ def _plot_gscreen_analysis(bench_home: Path, out_dir: Path):
         color="grey",
     )
     ax.set_xlabel("Mean ECFP4 Similarity (Active)")
-    ax.set_xlim(0, 0.5)
-    ax.set_ylabel("GS-S score enrichment (Active / All)")
-    ax.set_ylim(0.8, 1.6)
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylabel(key_label)
+    ax.set_ylim(y_lo_a, y_hi_a)
     stars_a = (
         "***"
         if p_a < 0.001
@@ -269,6 +338,44 @@ def _plot_gscreen_analysis(bench_home: Path, out_dir: Path):
 
     # Panel b
     ax = axes[1]
+    x_lo_b, x_hi_b = 0.8, 1.6
+    y_lo_b, y_hi_b = 0.4, 1.1
+    rand_x, rand_y = 1.0, 0.5
+
+    # Enrichment worse (left strip) — grey
+    ax.fill_between(
+        [x_lo_b, rand_x],
+        y_lo_b,
+        y_hi_b,
+        color="#bbbbbb",
+        alpha=0.2,
+        lw=0,
+        zorder=0,
+    )
+    # AUROC good (top strip) — amber
+    ax.fill_between(
+        [x_lo_b, x_hi_b],
+        rand_y,
+        y_hi_b,
+        color="#e8b058",
+        alpha=0.05,
+        lw=0,
+        zorder=0,
+    )
+    # AUROC bad (bottom strip) — cool blue
+    ax.fill_between(
+        [x_lo_b, x_hi_b],
+        y_lo_b,
+        rand_y,
+        color="#6ca0d8",
+        alpha=0.08,
+        lw=0,
+        zorder=0,
+    )
+
+    ax.axvline(rand_x, ls="--", color="#999999", lw=0.7, zorder=1)
+    ax.axhline(rand_y, ls="--", color="#999999", lw=0.7, zorder=1)
+
     for ds, sty in _DATASET_STYLE.items():
         mask = plot_data["dataset"] == ds
         if not mask.any():
@@ -291,10 +398,10 @@ def _plot_gscreen_analysis(bench_home: Path, out_dir: Path):
         ax=ax,
         color="grey",
     )
-    ax.set_xlabel("GS-S score enrichment (Active / All)")
-    ax.set_xlim(0.8, 1.6)
+    ax.set_xlabel(key_label)
+    ax.set_xlim(x_lo_b, x_hi_b)
     ax.set_ylabel("GS-SP AUROC")
-    ax.set_ylim(0.4, 1.1)
+    ax.set_ylim(y_lo_b, y_hi_b)
     stars_b = (
         "***"
         if p_b < 0.001
