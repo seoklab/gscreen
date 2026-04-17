@@ -1,10 +1,11 @@
 from pathlib import Path
 
 import pandas as pd
+from sklearn import metrics as skmetrics
 from tqdm import tqdm
 from typer import Typer
 
-from shared_metrics import METHOD_SLUG_MAP, compute_metrics
+from shared_metrics import METHOD_SLUG_MAP, enrichment_factor
 
 app = Typer(pretty_exceptions_enable=False)
 
@@ -33,6 +34,38 @@ def _load_method_values(db_home: Path, method: str):
     return df
 
 
+def _summarize_both(
+    group: pd.DataFrame,
+    score_col: str,
+    active_col: str,
+    ratios: list[float],
+    metric_names: list[str],
+):
+    return {
+        metric_names[0]: skmetrics.roc_auc_score(
+            group[active_col], group[score_col]
+        ),
+        **{
+            name: enrichment_factor(
+                group[active_col],
+                group[score_col],
+                ratio=r,
+                strict_mode=False,
+            )
+            for name, r in zip(metric_names[1:], ratios)
+        },
+        **{
+            name: enrichment_factor(
+                group[active_col],
+                group[score_col],
+                ratio=r,
+                strict_mode=True,
+            )
+            for name, r in zip(metric_names[1 + len(ratios) :], ratios)
+        },
+    }
+
+
 def _compute_metrics(
     df: pd.DataFrame,
     methods: list[str],
@@ -41,7 +74,7 @@ def _compute_metrics(
 ):
     all_metrics = []
     for (db, target), group in df.groupby(["dataset", "target"]):
-        metrics = compute_metrics(
+        metrics = _summarize_both(
             group,
             score_col="GS-SP",
             active_col="is_active",
@@ -61,7 +94,7 @@ def _compute_metrics(
 
             mult = valid[method].max() * 1000
             valid["combined"] = valid["GS-SP"] * mult + valid[method]
-            metrics = compute_metrics(
+            metrics = _summarize_both(
                 valid,
                 score_col="combined",
                 active_col="is_active",
@@ -106,7 +139,11 @@ def main(
     df = pd.concat(all_scores, ignore_index=True)
 
     ratios = list(map(float, ef_levels.split(",")))
-    metric_cols = ["AUROC", *[f"EF{ratio * 100:1g}%" for ratio in ratios]]
+    metric_cols = [
+        "AUROC",
+        *[f"EF{ratio * 100:1g}%" for ratio in ratios],
+        *[f"SEF{ratio * 100:1g}%" for ratio in ratios],
+    ]
     metrics = _compute_metrics(df, methods, ratios, metric_cols)
 
     output.mkdir(exist_ok=True)

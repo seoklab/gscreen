@@ -65,7 +65,12 @@ def ecfp4_weight(df: pd.DataFrame):
     return np.clip(6 * (ecfp4 - 0.1), 0, 0.9)
 
 
-def enrichment_factor(labels, scores, ratio: float = 0.01):
+def enrichment_factor(
+    labels,
+    scores,
+    ratio: float = 0.01,
+    strict_mode: bool = False,
+) -> float:
     labels = np.asarray(labels)
     scores = np.asarray(scores)
 
@@ -88,6 +93,8 @@ def enrichment_factor(labels, scores, ratio: float = 0.01):
 
     n_from_tied = n_select - n_above
     expected_actives = actives_above + actives_tied * (n_from_tied / n_tied)
+    if strict_mode:
+        n_select = n_above + n_tied
     return (expected_actives / n_select) / (total_actives / total_len)
 
 
