@@ -9,18 +9,14 @@ import typer
 from matplotlib.ticker import FixedLocator, SymmetricalLogLocator
 from scipy.stats import wilcoxon
 
+from shared_metrics import DATASET_STYLES
+
 app = typer.Typer()
 
 _G = "GS-P (G-align)"
 _P = "GS-P (PharmaGist)"
 _METRICS = ["aucroc", "ef 1%"]
 _METRIC_LABELS = {"aucroc": "AUROC", "ef 1%": "EF1%"}
-
-_DATASET_STYLE: dict[str, dict] = {
-    "DUD-E": {"marker": "o", "color": "#4c72b0"},
-    "LIT-PCBA": {"marker": "s", "color": "#dd8452"},
-    "MUV": {"marker": "D", "color": "#55a868"},
-}
 
 
 def _load(csv: Path) -> pd.DataFrame:
@@ -151,7 +147,7 @@ def _draw_panel(ax, sub, metric, add_labels):
         lw=0,
     )
 
-    for ds, sty in _DATASET_STYLE.items():
+    for ds, sty in DATASET_STYLES.items():
         mask = sub["dataset"] == ds
         if not mask.any():
             continue
