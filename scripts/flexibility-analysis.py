@@ -296,7 +296,7 @@ def _plot_correlation(per_target: pd.DataFrame, out: Path):
 
             ax.set_xlabel(_FLEX_COLS[fc], fontsize=8)
             if ci == 0:
-                label = _PERF_METRICS[pm] 
+                label = _PERF_METRICS[pm]
                 ax.set_ylabel(label, fontsize=8)
             else:
                 ax.set_ylabel("")
@@ -432,7 +432,7 @@ def _plot_stratified(strat: pd.DataFrame, bin_edges: np.ndarray, out: Path):
 
 @app.command()
 def main(
-    data_dir: Path = Path.home() / "repo/seoklab/gscreen-data/benchmark",
+    data_dir: Path,
     db_home: Path = Path.home() / "db",
     output_dir: Path = Path("flexibility_results"),
     datasets: str = "dud-e,lit-pcba,muv",
