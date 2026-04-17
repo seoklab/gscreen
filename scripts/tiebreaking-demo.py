@@ -92,7 +92,7 @@ def _compute_metrics(
             if valid.empty:
                 continue
 
-            mult = valid[method].max() * 1000
+            mult = max(valid[method].max() * 1000, 1)
             valid["combined"] = valid["GS-SP"] * mult + valid[method]
             metrics = _summarize_both(
                 valid,
