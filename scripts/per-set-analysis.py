@@ -111,7 +111,7 @@ def target_average_tani_ratio(
         above = scores >= threshold
         n_above = above.sum()
         if n_above == 0:
-            return 0.0
+            return np.nan
         return (ecfp4[above].sum() / n_above) / ecfp4.mean()
 
     above = scores > threshold
