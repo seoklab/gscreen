@@ -30,9 +30,7 @@ def main(
 
     df = df.set_index("id")
     key_score = df.loc[key, "score"]
-    n_above = (df["score"] > key_score).sum()
-    n_tied = (df["score"] == key_score).sum()
-    topn = (n_above + (n_tied + 1) / 2) / len(df)
+    topn = (df["score"] >= key_score).sum() / len(df)
     print(f"{key}: {topn:.3%}")
 
 

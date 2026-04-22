@@ -20,8 +20,8 @@ _METHODS = {
     "GS-SP": "score",
 }
 _FLEX_COLS = {
-    "nrotors": "# Rotatable bonds",
-    "rot_per_heavyatom": "# Rotatable bonds / # Heavy atom",
+    "nrotors": "# Rotatable bonds (median)",
+    "rot_per_heavyatom": "# Rotatable bonds / # Heavy atom (median)",
 }
 _PERF_METRICS = {"aucroc": "AUROC", "ef 1%": "EF1%"}
 

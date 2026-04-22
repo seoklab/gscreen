@@ -264,7 +264,7 @@ def _plot_gscreen_analysis(bench_home: Path, out_dir: Path):
         gridspec_kw={"wspace": 0.2},
         figsize=(11.23625, 5),
     )
-    key_label = "Baseline-normalized Active Alignment"
+    key_label = "Relative shape similarity of actives"
 
     # Panel a
     ax = axes[0]

@@ -11,10 +11,14 @@ from sklearn import metrics as skmetrics
 _logger = logging.getLogger(__name__)
 
 GSCREEN_METHODS = ["GS-S", "GS-P", "GS-SP"]
+TIEBREAK_METHODS = ["GS-P + PG", "GS-P + Vina", "GS-SP + PG", "GS-SP + Vina"]
 BASELINE_METHODS = ["Flexi-LS-align", "PharmaGist", "AutoDock Vina"]
 ALL_METHODS = GSCREEN_METHODS + BASELINE_METHODS
 
 METHOD_SLUG_MAP = {
+    "shape": "GS-S",
+    "pharma": "GS-P",
+    "score": "GS-SP",
     "ls-align": "Flexi-LS-align",
     "pharmagist": "PharmaGist",
     "autodock-vina": "AutoDock Vina",
@@ -80,21 +84,24 @@ def enrichment_factor(
     kth = total_len - n_select
     threshold = np.partition(scores, kth)[kth]
 
-    above = scores > threshold
-    tied = scores == threshold
-
     total_actives = labels.sum()
     assert total_actives > 0
+
+    if strict_mode:
+        hits = scores >= threshold
+        active_hits = np.sum(labels[hits])
+        n_hits = np.sum(hits)
+        return (active_hits / n_hits) / (total_actives / total_len)
+
+    above = scores > threshold
+    tied = scores == threshold
 
     n_above = above.sum()
     actives_above = labels[above].sum()
     n_tied = max(tied.sum(), 1)
     actives_tied = labels[tied].sum()
-
     n_from_tied = n_select - n_above
     expected_actives = actives_above + actives_tied * (n_from_tied / n_tied)
-    if strict_mode:
-        n_select = n_above + n_tied
     return (expected_actives / n_select) / (total_actives / total_len)
 
 
@@ -176,13 +183,19 @@ def compute_metrics(
     active_col: str,
     ratios: list[float],
     metric_names: list[str],
+    strict_mode: bool = False,
 ) -> dict[str, float]:
     return {
         metric_names[0]: skmetrics.roc_auc_score(
             df[active_col], df[score_col]
         ),
         **{
-            name: enrichment_factor(df[active_col], df[score_col], ratio=r)
+            name: enrichment_factor(
+                df[active_col],
+                df[score_col],
+                ratio=r,
+                strict_mode=strict_mode,
+            )
             for name, r in zip(metric_names[1:], ratios)
         },
     }

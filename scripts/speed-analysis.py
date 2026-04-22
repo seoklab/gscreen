@@ -4,6 +4,7 @@ Loads GNU time outputs for all methods, reports relative average runtime
 (GS-SP 128T = 1x), and generates a grouped box plot.
 """
 
+import math
 from pathlib import Path
 from typing import Optional
 
@@ -17,17 +18,17 @@ from joblib import Parallel, delayed
 app = typer.Typer(pretty_exceptions_enable=False)
 
 _GROUPS = [
-    ("GS-S", ["galign-1", "galign-128"], ["(Single)", "(128 Thr)"]),
-    ("GS-P/SP", ["gscreen-1", "gscreen-128"], ["(Single)", "(128 Thr)"]),
-    ("Flexi-LS-align", ["ls-align-1"], [""]),
-    ("PharmaGist", ["pharmagist-1"], [""]),
-    ("AutoDock Vina", ["vina-1", "vina-8"], ["(Single)", "(8 Thr)"]),
+    ("GS-S", ["galign-1", "galign-128"], ["(1T)", "(128T)"]),
+    ("GS-P/SP", ["gscreen-1", "gscreen-128"], ["(1T)", "(128T)"]),
+    ("Flexi-LS-align", ["ls-align-1"], ["(1T)"]),
+    ("PharmaGist", ["pharmagist-1"], ["(1T)"]),
+    ("AutoDock Vina", ["vina-1", "vina-8"], ["(1T)", "(8T)"]),
 ]
 
 _INTRA_GAP = 0.75
 _GROUP_SPACING = 1.75
 
-_REFERENCE_KEY = "gscreen-128"
+_REFERENCE_KEY = "gscreen-1"
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +145,7 @@ def _load_all(bench_home: Path, cache: Path) -> pd.DataFrame:
 
 
 def _fmt_method(grp_name: str, nproc: int) -> str:
-    thr = f"{nproc} Thr" if nproc > 1 else "Single"
+    thr = f"{nproc}T"
     return f"{grp_name:20s} ({thr:>8s})"
 
 
@@ -152,7 +153,6 @@ def _sig2(x: float) -> str:
     """Format a float to 2 significant figures, always in decimal."""
     if x == 0:
         return "0.0"
-    import math
 
     digits = -int(math.floor(math.log10(abs(x)))) + 1
     return f"{x:.{max(digits, 0)}f}"
@@ -178,7 +178,7 @@ def _report_relative(df: pd.DataFrame):
     ratio_by_db["all"] = time_by_db["all"] / ref_all
 
     db_headers = "".join(f"{db:>12s}" for db in databases)
-    typer.echo("\nRelative average runtime (GS-SP 128T = 1.0x):")
+    typer.echo("\nRelative average runtime (GS-SP 1T = 1.0x):")
     typer.echo(f"  {'':32s} {db_headers}{'all':>12s}")
     for grp_name, keys, _ in _GROUPS:
         for key in keys:
