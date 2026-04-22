@@ -101,7 +101,12 @@ def _collect_all_metrics(
         target, pdbid = _parse_target_pdbid(key)
         for method_name, score_col in gscreen_submethods.items():
             vals = compute_metrics(
-                df, score_col, "is_active", ratios, metric_names
+                df,
+                score_col,
+                "is_active",
+                ratios,
+                metric_names,
+                strict_mode=True,
             )
             for metric, score in vals.items():
                 rows.append(
@@ -119,7 +124,12 @@ def _collect_all_metrics(
         for key, df in method_scores.items():
             target, pdbid = _parse_target_pdbid(key)
             vals = compute_metrics(
-                df, "score", "is_active", ratios, metric_names
+                df,
+                "score",
+                "is_active",
+                ratios,
+                metric_names,
+                strict_mode=True,
             )
             for metric, score in vals.items():
                 rows.append(
