@@ -106,7 +106,7 @@ def _collect_all_metrics(
                 "is_active",
                 ratios,
                 metric_names,
-                strict_mode=True,
+                strict_mode=False,
             )
             for metric, score in vals.items():
                 rows.append(
@@ -129,7 +129,7 @@ def _collect_all_metrics(
                 "is_active",
                 ratios,
                 metric_names,
-                strict_mode=True,
+                strict_mode=False,
             )
             for metric, score in vals.items():
                 rows.append(

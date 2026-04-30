@@ -65,7 +65,7 @@ def _summarize_scores(
     metric_cols: list[str],
     score_col: str = "score",
     active_col: str = "is_active",
-    strict_ef: bool = True,
+    strict_ef: bool = False,
     nproc: int = 8,
 ) -> pd.DataFrame:
     if not isinstance(dfs, dict):
@@ -122,7 +122,7 @@ def target_average_tani_ratio(
     n_from_tied = n_select - n_above
 
     expected_ecfp4_sum = ecfp4[above].sum() + ecfp4[tied].sum() * (
-        n_from_tied / n_tied
+        n_from_tied / max(n_tied, 1)
     )
     return (expected_ecfp4_sum / n_select) / ecfp4.mean()
 
@@ -134,7 +134,7 @@ def _load_method_scores(
     metric_cols: list[str],
     similarities: pd.DataFrame,
     skip_missing: bool = False,
-    strict_ef: bool = True,
+    strict_ef: bool = False,
     nproc: int = 8,
 ):
     raw = load_method_scores(bench_home, method, skip_missing=skip_missing)
@@ -169,7 +169,7 @@ def main(
     similarity_enrichment_cutoff: float = 0.01,
     skip_missing: bool = False,
     only_gscreen: bool = False,
-    strict_ef: bool = True,
+    strict_ef: bool = False,
     include_tiebreak: bool = False,
     nproc: int = 8,
 ):
@@ -362,10 +362,9 @@ def main(
     typer.echo(
         all_metrics.groupby(["method", "metric"])
         .mean(numeric_only=True)
-        .reorder_levels([1, 0])
         .loc[
-            ["aucroc", *[f"ef {ratio * 100:1g}%" for ratio in ratios]],
             methods,
+            ["aucroc", *[f"ef {ratio * 100:1g}%" for ratio in ratios]],
             :,
         ]
     )
