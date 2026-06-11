@@ -317,7 +317,7 @@ def _plot(df: pd.DataFrame, output: Path):
 
 
 @app.command()
-def main(bench_home: Path = Path.home() / "benchmark/bench"):
+def main(output: Path, bench_home: Path = Path.home() / "benchmark/bench"):
     sns.set_theme(
         style="whitegrid",
         rc={
@@ -328,13 +328,13 @@ def main(bench_home: Path = Path.home() / "benchmark/bench"):
     )
 
     cache = bench_home / _CACHE_NAME
-    output = bench_home / "speed.svg"
 
     typer.echo("Loading timing data ...")
     df = _load_all(bench_home, cache)
     _report_relative(df)
 
     typer.echo(f"Plotting to {output} ...")
+    output.parent.mkdir(parents=True, exist_ok=True)
     _plot(df, output)
     typer.echo("Done.")
 

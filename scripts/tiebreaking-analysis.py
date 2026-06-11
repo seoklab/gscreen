@@ -22,7 +22,9 @@ _pairs = [
 _METRICS = ["AUROC", "EF0.1%", "EF1%", "EF5%"]
 _DELTA_COLS = [f"d{m}" for m in _METRICS]
 
-_DATASET_ORDER = ["DUD-E", "LIT-PCBA", "MUV", "All"]
+_METHOD_KEYS = ["PharmaGist", "GS-SP + PG", "AutoDock Vina", "GS-SP + Vina"]
+_TOPS = [100, 30, 25]
+_DATASET_ORDER = ["DUD-E", "LIT-PCBA", "MUV"]
 colors = (
     list(sns.color_palette("magma_r"))[:2]
     + list(sns.color_palette("viridis_r"))[1:3]
@@ -95,6 +97,57 @@ def _load_speed_cache(bench_home: Path):
     df["Speedup"] = df["Vanilla time"] / df["GS-SP time"]
     df = df.reset_index()
     return df
+
+
+def _load_extra(
+    sdf: pd.DataFrame,
+    nligs_csv: Path,
+    proj_csv: Path,
+) -> pd.DataFrame:
+    nligs = pd.read_csv(nligs_csv)
+    proj = pd.read_csv(proj_csv)
+
+    memory = proj.merge(nligs, on=["dataset", "target"], how="left")
+    memory["estimate"] = 10 ** (
+        memory["slope"] * np.log10(memory["n"]) + memory["intercept"]
+    )
+    memory["method"] = memory["method"].map(
+        lambda m: m.replace("GS-P/SP", "GS-SP")
+    )
+    memory = (
+        memory.loc[
+            memory["method"].isin(["GS-SP", "PharmaGist"]),
+            ["method", "dataset", "target", "estimate"],
+        ]
+        .set_index(["method", "dataset", "target"])
+        .sort_index()
+    )
+    gssp_pg = memory.loc["GS-SP"] + memory.loc["PharmaGist"] * 0.01
+    gssp_pg = (
+        pd.concat([gssp_pg], keys=["PharmaGist"], names=["method"])
+        .dropna()
+        .rename(columns={"estimate": "GS-SP memory"})
+    )
+    memory = memory.rename(columns={"estimate": "Vanilla memory"}).join(
+        gssp_pg, how="right"
+    )
+    memory["Memory reduction"] = (
+        memory["Vanilla memory"] / memory["GS-SP memory"]
+    )
+    resource = (
+        memory[["Memory reduction"]]
+        .reset_index()
+        .merge(
+            sdf[["method", "db", "target", "Speedup"]].rename(
+                columns={"db": "dataset"}
+            ),
+            on=["method", "dataset", "target"],
+            how="left",
+        )
+        .dropna()
+    )
+    resource["dataset"] = resource["dataset"].str.upper()
+    return resource
 
 
 def _compute_deltas(df: pd.DataFrame) -> pd.DataFrame:
@@ -176,6 +229,13 @@ def _shift_boxes(ax: plt.Axes, old_x: list[float], new_x: list[float]):
             line.set_xdata(np.asarray(xd, dtype=float) + dx)
 
     for coll in ax.collections:
+        for path in coll.get_paths():
+            verts = path.vertices
+            cx = round(np.mean([verts[:, 0].min(), verts[:, 0].max()]))
+            dx = shift.get(cx, 0)
+            if dx:
+                path.vertices[:, 0] += dx
+
         offs = coll.get_offsets()
         if len(offs) == 0:
             continue
@@ -186,95 +246,92 @@ def _shift_boxes(ax: plt.Axes, old_x: list[float], new_x: list[float]):
             coll.set_offsets(offs)
 
 
-def _plot(df: pd.DataFrame, sdf: pd.DataFrame, out_dir: Path):
-    fig, axes = plt.subplots(
-        ncols=2,
-        figsize=(6, 4),
-        sharex=False,
-        sharey=False,
-    )
+def _plot(
+    df: pd.DataFrame,
+    sdf: pd.DataFrame,
+    rsrc: pd.DataFrame,
+    out_dir: Path,
+):
+    rng = np.random.default_rng(42)
     bar_width = 0.75
 
-    rng = np.random.default_rng(42)
+    plot_df = df.copy().sort_index()
 
-    df = df.copy()
-    sdf = sdf.copy()
-
-    unique_targets = df.index.get_level_values("target").unique()
+    unique_targets = plot_df.index.get_level_values("target").unique()
     target_jitters = rng.uniform(
         -bar_width * 0.2, bar_width * 0.2, size=len(unique_targets)
     )
     target_jitters = dict(zip(unique_targets, target_jitters))
-    df["jitter"] = df.index.get_level_values("target").map(target_jitters)
+    plot_df["jitter"] = plot_df.index.get_level_values("target").map(
+        target_jitters
+    )
+
     sdf["jitter"] = sdf["target"].map(target_jitters)
 
-    methods = ["PharmaGist", "GS-SP + PG", "AutoDock Vina", "GS-SP + Vina"]
+    fig = plt.figure(figsize=(9, 8), dpi=300)
+    gs = fig.add_gridspec(2, 6)
 
-    ax = axes[0]
-    for mi, method in enumerate(methods):
-        mdf = df.loc[method]
-        mdf = mdf[mdf["EF1%"].notna()]
-        if mdf.empty:
-            continue
+    axes = []
+    for i in range(3):
+        axes.append(fig.add_subplot(gs[0, i * 2 : (i + 1) * 2]))
+    axes.append(fig.add_subplot(gs[1, :3]))
+    axes.append(fig.add_subplot(gs[1, 3:]))
 
-        sns.boxplot(
-            x=np.full(len(mdf), mi),
-            y=mdf["EF1%"],
-            width=bar_width,
-            color=_METHOD_PALETTE[method],
-            linecolor="#555555",
-            showfliers=False,
-            ax=ax,
-            legend=False,
-        )
+    for ax, db, top in zip(axes[:3], _DATASET_ORDER, _TOPS):
+        for mi, method in enumerate(_METHOD_KEYS):
+            try:
+                mdf: pd.DataFrame = plot_df.loc[method, db]
+            except KeyError:
+                print(method, db)
+                raise
 
-        for ds_name, sty in DATASET_STYLES.items():
-            dsub = mdf.loc[ds_name]
-            if dsub.empty:
+            mdf = mdf[mdf["EF1%"].notna()]
+            if mdf.empty:
                 continue
 
-            ax.scatter(
-                mi + dsub["jitter"],
-                dsub["EF1%"],
-                s=10,
-                marker=sty["marker"],
-                color=sty["color"],
-                edgecolors="white",
-                linewidths=0.3,
-                alpha=0.7,
-                zorder=4,
+            sns.violinplot(
+                x=np.full(len(mdf), mi),
+                y=mdf["EF1%"],
+                width=bar_width,
+                color=_METHOD_PALETTE[method],
+                linecolor="#555555",
+                ax=ax,
+                legend=False,
             )
 
-    xs = [0, bar_width, 0.25 + bar_width * 2, 0.25 + bar_width * 3]
-    _shift_boxes(ax, old_x=list(range(len(methods))), new_x=xs)
+        xs = [0, bar_width, 0.25 + bar_width * 2, 0.25 + bar_width * 3]
+        _shift_boxes(ax, old_x=list(range(len(_METHOD_KEYS))), new_x=xs)
 
-    ax.axhspan(ax.get_ylim()[0], 1.0, color="#000000", alpha=0.04, zorder=0)
-    ax.axhline(1.0, ls="--", color="#999999", lw=0.8, zorder=1)
+        ax.axhspan(
+            ax.get_ylim()[0], 1.0, color="#000000", alpha=0.04, zorder=0
+        )
+        ax.axhline(1.0, ls="--", color="#999999", lw=0.8, zorder=1)
 
-    ax.set_xticks(
-        [bar_width * 0.5, 1 + bar_width * 1.5],
-        ["\nPharmaGist", "\nAutoDock Vina"],
-        fontsize=9,
-    )
-    ax.set_xticks(
-        xs,
-        ["(All)", "(GS-SP Top 1%)"] * 2,
-        minor=True,
-        fontsize=6,
-    )
+        ax.set_xticks(
+            [bar_width * 0.5, 1 + bar_width * 1.5],
+            ["\nPharmaGist", "\nAutoDock Vina"],
+            fontsize=9,
+        )
+        ax.set_xticks(
+            xs,
+            ["(All)", "(GS-SP Top 1%)"] * 2,
+            minor=True,
+            fontsize=6,
+        )
 
-    ax.set_xlabel("")
-    ax.set_xlim(-0.25 - bar_width * 0.5, 1.25 + bar_width * 2.5)
-    ax.set_ylabel("Enrichment factor (1%)", fontsize=10)
-    ax.set_ylim(bottom=0, top=100)
-    ax.set_yticks(
-        [1, 5, 10, 25, 50, 75, 100],
-        ["1x", "5x", "10x", "25x", "50x", "75x", "100x"],
-        fontsize=8,
-    )
-    ax.grid(axis="y", ls=":", alpha=0.4)
+        ax.set_title(db, fontsize=11, fontweight=500)
+        ax.set_xlabel("")
+        ax.set_xlim(-0.25 - bar_width * 0.5, 1.25 + bar_width * 2.5)
+        ax.set_ylabel("Enrichment factor (1%)", fontsize=10)
+        ax.set_yticks(
+            [1, 5, 10, 25, 50, 75, 100],
+            ["1x", "5x", "10x", "25x", "50x", "75x", "100x"],
+            fontsize=8,
+        )
+        ax.set_ylim(bottom=0, top=top)
+        ax.grid(axis="y", ls=":", alpha=0.4)
 
-    ax = axes[1]
+    ax = axes[3]
     sns.boxplot(
         sdf,
         x="method",
@@ -284,37 +341,17 @@ def _plot(df: pd.DataFrame, sdf: pd.DataFrame, out_dir: Path):
         hue_order=["PharmaGist", "AutoDock Vina"],
         palette=_METHOD_PALETTE,
         linecolor="#555555",
-        showfliers=False,
         ax=ax,
     )
-
-    method_order = {
-        m: i for i, m in enumerate(["PharmaGist", "AutoDock Vina"])
-    }
-    for (ds, method), group in sdf.groupby(["db", "method"]):
-        sty = DATASET_STYLES[ds.upper()]
-        ax.scatter(
-            np.full(len(group), method_order[method]) + group["jitter"] * 2,
-            group["Speedup"],
-            marker=sty["marker"],
-            color=sty["color"],
-            edgecolors="white",
-            s=10,
-            linewidths=0.3,
-            alpha=0.7,
-            zorder=4,
-            label=ds.upper() if method == "PharmaGist" else None,
-        )
-
     ax.axhspan(ax.get_ylim()[0], 1.0, color="#000000", alpha=0.04, zorder=0)
     ax.axhline(1.0, ls="--", color="#999999", lw=0.8, zorder=1)
     ax.grid(axis="y", ls=":", alpha=0.4)
 
     ax.set_xlabel("")
-    ax.tick_params(axis="x", labelsize=9)
+    ax.tick_params(axis="x", labelsize=10)
     ax.set_ylim(bottom=0, top=100)
     ax.set_ylabel(
-        "Estimated speedup (GS-SP filtering, Top 1%)",
+        "Estimated runtime speedup",
         fontsize=10,
     )
     ax.set_yticks(
@@ -324,9 +361,9 @@ def _plot(df: pd.DataFrame, sdf: pd.DataFrame, out_dir: Path):
     )
 
     pg = sdf[sdf["method"] == "PharmaGist"]
-    pg_max = 7
+    pg_max = 8
 
-    inset = ax.inset_axes((0.25, 0.12, 0.2, 0.3))
+    inset = ax.inset_axes((0.3, 0.15, 0.2, 0.3))
     sns.boxplot(
         pg,
         x="method",
@@ -336,23 +373,9 @@ def _plot(df: pd.DataFrame, sdf: pd.DataFrame, out_dir: Path):
         hue_order=["PharmaGist"],
         palette=_METHOD_PALETTE,
         linecolor="#555555",
-        showfliers=False,
         ax=inset,
         legend=False,
     )
-    for ds, grp in pg.groupby("db"):
-        sty = DATASET_STYLES[ds.upper()]
-        inset.scatter(
-            np.zeros(len(grp)) + grp["jitter"] * 2,
-            grp["Speedup"],
-            s=3,
-            marker=sty["marker"],
-            color=sty["color"],
-            edgecolors="white",
-            linewidths=0.3,
-            alpha=0.6,
-            zorder=4,
-        )
     inset.axhspan(
         inset.get_ylim()[0], 1.0, color="#000000", alpha=0.04, zorder=0
     )
@@ -404,39 +427,70 @@ def _plot(df: pd.DataFrame, sdf: pd.DataFrame, out_dir: Path):
     fig.add_artist(cp1)
     fig.add_artist(cp2)
 
-    handles, labels = ax.get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        loc="center right",
-        fontsize=8,
-        title="Dataset",
-        title_fontsize=9,
-        bbox_to_anchor=(1.14, 0.5),
-    )
+    ax = axes[4]
+    for ds_name, sty in DATASET_STYLES.items():
+        sns.scatterplot(
+            data=rsrc[rsrc["dataset"] == ds_name],
+            x="Speedup",
+            y="Memory reduction",
+            marker=sty["marker"],
+            color=sty["color"],
+            ax=ax,
+            legend=False,
+            label=ds_name,
+        )
+    ax.legend(title="Dataset", title_fontsize=9, fontsize=8, loc="lower right")
+    ax.set_xscale("log")
+    ax.set_xlim(0.1, 100)
+    ax.set_xticks([0.1, 1, 10, 100], ["0.1x", "1x", "10x", "100x"], fontsize=8)
+    ax.set_xlabel("Estimated runtime speedup", fontsize=10)
+    ax.set_yscale("log")
+    ax.set_ylim(0.1, 100)
+    ax.set_yticks([0.1, 1, 10, 100], ["0.1x", "1x", "10x", "100x"], fontsize=8)
+    ax.set_ylabel("Estimated memory reduction", fontsize=10)
+    ax.tick_params(axis="x", which="both", bottom=True)
+    ax.set_aspect("equal")
 
-    for ax, letter in zip(axes, "abc"):
+    ax.grid(axis="both", ls=":", alpha=0.5)
+    ax.axhspan(ax.get_ylim()[0], 1.0, color="#000000", alpha=0.04, zorder=0)
+    ax.axhline(1.0, ls="--", color="#999999", lw=0.8, zorder=1)
+    ax.axvspan(ax.get_xlim()[0], 1.0, color="#000000", alpha=0.04, zorder=0)
+    ax.axvline(1.0, ls="--", color="#999999", lw=0.8, zorder=1)
+
+    fig.tight_layout()
+
+    for ax, letter in zip(axes[:3], "abc"):
         ax.annotate(
             letter,
-            xy=(-0.27, 0.97),
+            xy=(-0.27, 1.02),
             xycoords="axes fraction",
             fontsize=14,
             fontweight=700,
         )
+    axes[3].annotate(
+        "d",
+        xy=(-0.16, 0.97),
+        xycoords="axes fraction",
+        fontsize=14,
+        fontweight=700,
+    )
+    axes[4].annotate(
+        "e",
+        xy=(-0.18, 0.97),
+        xycoords="axes fraction",
+        fontsize=14,
+        fontweight=700,
+    )
 
-    fig.tight_layout()
-    for ext in ("svg", "pdf", "png"):
-        fig.savefig(
-            (out_dir / "tie-breaking").with_suffix(f".{ext}"),
-            dpi=300,
-            bbox_inches="tight",
-        )
-    plt.close(fig)
+    for ext in ["png", "pdf", "svg"]:
+        fig.savefig(out_dir / f"tiebreaking_analysis.{ext}", dpi=300)
 
 
 @app.command()
 def main(
     bench_home: Path,
+    nligs_csv: Path = typer.Option(),
+    proj_csv: Path = typer.Option(),
     datasets: str = "dud-e,lit-pcba,muv",
     out_dir: Path = Path("tiebreaking-analysis"),
 ):
@@ -454,8 +508,11 @@ def main(
         [_load_scores(bench_home / ds) for ds in datasets.split(",")],
         ignore_index=True,
     ).set_index(["method", "dataset", "target"])
+
     sdf = _load_speed_cache(bench_home)
-    _plot(df, sdf, out_dir)
+    rsrc = _load_extra(sdf, nligs_csv, proj_csv)
+
+    _plot(df, sdf, rsrc, out_dir)
 
     typer.echo("Computing deltas vs GS-SP...")
     deltas = _compute_deltas(df)
