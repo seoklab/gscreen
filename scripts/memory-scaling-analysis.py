@@ -122,13 +122,14 @@ def _fit_loglog(n_vals, rss_vals):
     return coeffs[0], coeffs[1]
 
 
-def _project(df: pd.DataFrame, methods: list, project_to: int) -> pd.DataFrame:
+def _project(df: pd.DataFrame, methods: list, project_to: int):
     """Per-target log-log extrapolation up to project_to.
 
     Returns a DataFrame with projected rows containing
     target, method, n_mols, peak_rss_mb.
     """
     records = []
+    equations = []
     for (tgt, m), grp in df.groupby(["target", "method"]):
         if m not in methods:
             continue
@@ -140,6 +141,7 @@ def _project(df: pd.DataFrame, methods: list, project_to: int) -> pd.DataFrame:
         if slope is None:
             continue
 
+        equations.append((*tgt.split("/"), m, slope, intercept))
         max_obs = grp["n_mols"].max()
         if max_obs >= project_to:
             continue
@@ -161,7 +163,13 @@ def _project(df: pd.DataFrame, methods: list, project_to: int) -> pd.DataFrame:
                 }
             )
 
-    return pd.DataFrame(records)
+    return (
+        pd.DataFrame(records),
+        pd.DataFrame(
+            equations,
+            columns=["dataset", "target", "method", "slope", "intercept"],
+        ),
+    )
 
 
 def _plot_projected_ribbon(
@@ -670,6 +678,7 @@ def main(
     containing db/target/memory_scaling.csv files.
     """
     raw = _load_data(data_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     typer.echo(f"Loaded {len(raw)} rows, {raw['target'].nunique()} targets")
 
@@ -681,7 +690,9 @@ def main(
     df1 = _fill_missing(df1, methods, sizes)
 
     # --- Projections ---
-    df_proj = _project(df1, methods, project_to)
+    df_proj, equations = _project(df1, methods, project_to)
+    equations.to_csv(output_dir / "projections.csv", index=False)
+
     feas_proj = _project_at(df1, methods, _FEASIBILITY_SIZES)
     feas = _compute_feasibility(df1, feas_proj)
 
